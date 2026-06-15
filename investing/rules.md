@@ -32,6 +32,22 @@ screen_weight_compliance: 0.0    # 0 = informational only (you decide in your ow
 screen_buy_candidate_score: 65   # composite >= this -> BUY-CANDIDATE, else RESEARCH
 screen_min_price: 1.0            # below this -> AVOID (illiquid/penny)
 compliance_gate: true            # holdings verdict gate; set false to disable hard SELL
+
+# === TARGETS (targets.py): price target, scale-out sell plan, duration ===
+
+target_method: r_multiple        # r_multiple | structure | atr (structure uses lower of struct vs R)
+reward_risk: 3.0                 # swing default 3:1 (use 2.0 for shorter holds)
+atr_target_mult: 4.0             # for target_method=atr: entry + k*ATR
+t1_r: 1.5                        # Target 1 at +1.5R -> take partial, stop to breakeven
+t1_fraction: 0.5                 # fraction of position sold at T1
+t2_r: 3.0                        # Target 2 at +3R -> trail remainder to here
+
+# targeted holding duration + time-stop, by trade_type (calendar days)
+## duration_days_swing: 21          # ~days-to-weeks
+duration_days_momentum: 90       # weeks-to-few-months
+duration_days_catalyst: 45       # ~20-60 trading-day PEAD drift window
+duration_days_core: 365
+time_stop_progress: 0.5          # if < this fraction of the way to T1 by duration -> time-stop
 ---
 
 # Decision rules — YOUR pre-committed short-term policy
