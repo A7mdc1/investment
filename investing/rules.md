@@ -32,6 +32,28 @@ screen_weight_compliance: 0.0    # 0 = informational only (you decide in your ow
 screen_buy_candidate_score: 65   # composite >= this -> BUY-CANDIDATE, else RESEARCH
 screen_min_price: 1.0            # below this -> AVOID (illiquid/penny)
 compliance_gate: true            # holdings verdict gate; set false to disable hard SELL
+
+# === PM-GRADE RECOMMENDATION ENGINE (recommend.py) ===
+# Encodes the edge/asymmetry/catalyst gates from the PM decision-logic note
+# (docs/Portfolio_Manager_Decision_Logic...md). The engine cannot supply a
+# real analytical edge or conviction call — only you can. These knobs just
+# set the mechanical floor it enforces before it will say BUY-CANDIDATE.
+reward_risk_min: 3.0              # min upside:downside for BUY-CANDIDATE (institutional norm)
+reward_risk_min_swing: 2.0        # relaxed floor for short-horizon swing setups
+catalyst_horizon_days: 60         # no catalyst inside this window -> cap at RESEARCH
+
+# === AUTO-DISCOVERY (discover.py) ===
+# Each LOCAL run auto-builds a candidate pool, runs the PM pipeline, and rewrites
+# watchlist.md with the top-N by "max benefit". Needs live Yahoo data (blocked in
+# sandboxes). Shariah ratio FLAG = absolute AVOID; clean stays UNVERIFIED (you
+# still confirm the business screen in Zoya/Musaffa). EDGE is never auto-supplied.
+discover_top_n: 20                # how many candidates to keep + write to watchlist.md
+discover_etfs: [SPUS]             # halal-ETF holdings as the Shariah-friendlier base pool
+discover_screens: [growth_technology_stocks, undervalued_large_caps, most_actives]
+discover_screen_count: 100        # names to pull per yfinance predefined screen
+discover_w_rr: 0.5                # max-benefit rank weight: asymmetry (reward:risk) leads
+discover_w_score: 0.3             # ...then the mechanical signal score (screener.py)
+discover_w_catalyst: 0.2          # ...then catalyst proximity (closer earnings ranks higher)
 ---
 
 # Decision rules — YOUR pre-committed short-term policy
@@ -52,6 +74,15 @@ Evidence sources in parentheses; full report in the research artifact.
 - pullback to EMA_fast in an uptrend (no tight stop here — Kaminski & Lo 2014)
 - positive earnings-surprise drift / defined catalyst (PEAD; Bernard & Thomas 1989)
 Size = risk_per_trade_pct / stop-distance, capped at max_position_pct & portfolio_heat_pct.
+
+`recommend.py` (new-idea funnel: screen -> RESEARCH -> BUY-CANDIDATE / AVOID)
+adds two gates ahead of sizing, run in this order:
+- EDGE_GATE | no stated reason the market is wrong (no thesis/"why" supplied) |
+  capped at RESEARCH — a mechanical score alone is not an edge.
+- ASYMMETRY_GATE | upside:downside < reward_risk_min (or reward_risk_min_swing
+  for swing setups) | capped at RESEARCH; AVOID if there's no defined downside at all.
+- CATALYST_GATE | no catalyst within catalyst_horizon_days | capped at RESEARCH
+  ("dead money" — see Stage 4 TIME_STOP for existing holdings).
 
 ## Stage 3 — Manage (HOLD / TRIM)
 - HOLD while price > trailing stop AND thesis intact (let winners run).
