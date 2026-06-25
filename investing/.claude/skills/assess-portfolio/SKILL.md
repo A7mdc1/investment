@@ -19,6 +19,13 @@ financial advisor and that Shariah status must be verified in Zoya/Musaffa.
    - `python scripts/signals.py`   → raw review flags per position
    - `python scripts/verdict.py`   → one verb per holding + trailing stop, R-multiple,
      6m momentum, and portfolio vol-throttle notes, all driven by rules.md
+   - `python scripts/recommend.py` → the PM-grade layer on top: a structured record
+     per holding/watchlist idea (conviction, reward:risk, catalyst, invalidation —
+     schema from the PM decision-logic note). It enforces the edge/asymmetry/catalyst
+     gates mechanically but CANNOT supply a real variant view or conviction call —
+     where `conviction_why` says input is missing, that's your cue to supply it
+     (thesis text in the holding's `.md`, or a `why`/catalyst column in watchlist.md),
+     not something to paper over.
 
 2. Read each holding's thesis/risks/notes for context the numbers miss.
 
@@ -36,6 +43,9 @@ financial advisor and that Shariah status must be verified in Zoya/Musaffa.
      `TICKER -> VERB  (RULE: why)`, plus its trailing stop and distance to it,
      R-multiple, and 6m momentum. State plainly these are YOUR rules resolving,
      not advice. Surface verdict.py's `note` and any `portfolio_notes` (vol throttle).
+     Below each verdict, add the PM-grade record from recommend.py (conviction +
+     why, reward:risk, target/stop and method, time horizon, "would I buy here
+     today?") — label these as mechanical proxies, not a real conviction call.
    - **Snapshot**: total value, weights, per-name return.
    - **Action flags (priority order)**: from signals.py. Lead with mandate
      (non-compliant / stale) flags — these are policy issues, not price calls.
@@ -49,11 +59,16 @@ financial advisor and that Shariah status must be verified in Zoya/Musaffa.
    - **DCF**: intrinsic vs price, with the assumptions stated.
    - **New ideas**: from step 4, give each a verb too —
      `AVOID` (fails a hard rule, e.g. not compliant) / `RESEARCH` (compliance
-     unverified — screen before anything) / `BUY-CANDIDATE` (passes your gates;
-     still YOUR call). A BUY-CANDIDATE must show 2+ entry confirmations (momentum/
-     breakout+volume/pullback/catalyst), a defined initial stop, and a size at
-     risk_per_trade_pct. Show the catalyst and the main risk. Never a price target
-     or a promise of returns.
+     unverified, no stated edge, or no catalyst within horizon — screen/underwrite
+     before anything) / `BUY-CANDIDATE` (passes your gates; still YOUR call). Use
+     `python scripts/recommend.py`'s `ideas` array as the mechanical first pass —
+     it enforces EDGE_GATE (a stated reason the market is wrong, from watchlist.md's
+     `why` column), ASYMMETRY_GATE (reward:risk >= `reward_risk_min_swing`), and
+     CATALYST_GATE (a dated catalyst within `catalyst_horizon_days`) — then layer
+     your web research for the actual catalyst facts and the main risk on top.
+     A BUY-CANDIDATE must show 2+ entry confirmations (momentum/breakout+volume/
+     pullback/catalyst), a defined initial stop, and a size at risk_per_trade_pct.
+     Never a price target framed as a promise of returns.
    - **Follow-ups**: short prioritized checklist.
 
 ## Rules

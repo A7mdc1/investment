@@ -32,6 +32,15 @@ screen_weight_compliance: 0.0    # 0 = informational only (you decide in your ow
 screen_buy_candidate_score: 65   # composite >= this -> BUY-CANDIDATE, else RESEARCH
 screen_min_price: 1.0            # below this -> AVOID (illiquid/penny)
 compliance_gate: true            # holdings verdict gate; set false to disable hard SELL
+
+# === PM-GRADE RECOMMENDATION ENGINE (recommend.py) ===
+# Encodes the edge/asymmetry/catalyst gates from the PM decision-logic note
+# (docs/Portfolio_Manager_Decision_Logic...md). The engine cannot supply a
+# real analytical edge or conviction call — only you can. These knobs just
+# set the mechanical floor it enforces before it will say BUY-CANDIDATE.
+reward_risk_min: 3.0              # min upside:downside for BUY-CANDIDATE (institutional norm)
+reward_risk_min_swing: 2.0        # relaxed floor for short-horizon swing setups
+catalyst_horizon_days: 60         # no catalyst inside this window -> cap at RESEARCH
 ---
 
 # Decision rules — YOUR pre-committed short-term policy
@@ -52,6 +61,15 @@ Evidence sources in parentheses; full report in the research artifact.
 - pullback to EMA_fast in an uptrend (no tight stop here — Kaminski & Lo 2014)
 - positive earnings-surprise drift / defined catalyst (PEAD; Bernard & Thomas 1989)
 Size = risk_per_trade_pct / stop-distance, capped at max_position_pct & portfolio_heat_pct.
+
+`recommend.py` (new-idea funnel: screen -> RESEARCH -> BUY-CANDIDATE / AVOID)
+adds two gates ahead of sizing, run in this order:
+- EDGE_GATE | no stated reason the market is wrong (no thesis/"why" supplied) |
+  capped at RESEARCH — a mechanical score alone is not an edge.
+- ASYMMETRY_GATE | upside:downside < reward_risk_min (or reward_risk_min_swing
+  for swing setups) | capped at RESEARCH; AVOID if there's no defined downside at all.
+- CATALYST_GATE | no catalyst within catalyst_horizon_days | capped at RESEARCH
+  ("dead money" — see Stage 4 TIME_STOP for existing holdings).
 
 ## Stage 3 — Manage (HOLD / TRIM)
 - HOLD while price > trailing stop AND thesis intact (let winners run).

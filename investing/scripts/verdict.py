@@ -37,9 +37,12 @@ def price_of(t, fallback):
     return fallback
 
 
-def main():
-    cfg = load_cfg()
-    hs = load_holdings()
+def compute(cfg=None, hs=None) -> dict:
+    """Resolve every holding's verb + drivers. Returns the same dict main() prints."""
+    if cfg is None:
+        cfg = load_cfg()
+    if hs is None:
+        hs = load_holdings()
     small = len(hs) < int(cfg.get("min_names_for_concentration", 4))
 
     vals = []
@@ -120,8 +123,11 @@ def main():
 
     note = (f"Only {len(hs)} holding(s): concentration muted until "
             f">= {cfg.get('min_names_for_concentration',4)} names.") if small else None
-    print(json.dumps({"note": note, "portfolio_notes": sorted(set(portfolio_notes)),
-                      "verdicts": out}, indent=2))
+    return {"note": note, "portfolio_notes": sorted(set(portfolio_notes)), "verdicts": out}
+
+
+def main():
+    print(json.dumps(compute(), indent=2))
 
 
 if __name__ == "__main__":
