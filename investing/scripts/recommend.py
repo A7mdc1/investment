@@ -208,9 +208,20 @@ def idea_record(idea: dict, cfg: dict, today: dt.date) -> dict:
     has_edge = bool(idea.get("why"))
 
     verb, why = "RESEARCH", []
-    if shariah_stat == "FAIL" or px is None:
-        verb = "AVOID"
-        why.append("no price data" if px is None else shariah_note)
+    if shariah_stat == "FAIL":
+        verb = "AVOID"  # a Shariah knockout is the only hard AVOID for a new idea
+        why.append(shariah_note)
+    elif px is None:
+        # Data gap, NOT a knockout: with no price we can't run the asymmetry gate,
+        # so the idea stays RESEARCH ("not investable today"), not excluded. The
+        # qualitative gates (edge, catalyst) still report so you see what's missing.
+        why.append("DATA_GAP: no price feed — can't compute reward:risk; underwrite when data is available")
+        if not has_edge:
+            why.append("EDGE_GATE: no stated reason the market is wrong — supply `why` in watchlist.md")
+        if cat_days is None:
+            why.append(f"CATALYST_GATE: no catalyst date given (state one within {horizon}d)")
+        elif cat_days > horizon:
+            why.append(f"CATALYST_GATE: catalyst {cat_days}d out > {horizon}d horizon")
     else:
         if not has_edge:
             why.append("EDGE_GATE: no stated reason the market is wrong — supply `why` in watchlist.md")
