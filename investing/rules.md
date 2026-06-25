@@ -41,6 +41,19 @@ compliance_gate: true            # holdings verdict gate; set false to disable h
 reward_risk_min: 3.0              # min upside:downside for BUY-CANDIDATE (institutional norm)
 reward_risk_min_swing: 2.0        # relaxed floor for short-horizon swing setups
 catalyst_horizon_days: 60         # no catalyst inside this window -> cap at RESEARCH
+
+# === AUTO-DISCOVERY (discover.py) ===
+# Each LOCAL run auto-builds a candidate pool, runs the PM pipeline, and rewrites
+# watchlist.md with the top-N by "max benefit". Needs live Yahoo data (blocked in
+# sandboxes). Shariah ratio FLAG = absolute AVOID; clean stays UNVERIFIED (you
+# still confirm the business screen in Zoya/Musaffa). EDGE is never auto-supplied.
+discover_top_n: 20                # how many candidates to keep + write to watchlist.md
+discover_etfs: [SPUS]             # halal-ETF holdings as the Shariah-friendlier base pool
+discover_screens: [growth_technology_stocks, undervalued_large_caps, most_actives]
+discover_screen_count: 100        # names to pull per yfinance predefined screen
+discover_w_rr: 0.5                # max-benefit rank weight: asymmetry (reward:risk) leads
+discover_w_score: 0.3             # ...then the mechanical signal score (screener.py)
+discover_w_catalyst: 0.2          # ...then catalyst proximity (closer earnings ranks higher)
 ---
 
 # Decision rules — YOUR pre-committed short-term policy

@@ -12,6 +12,15 @@ financial advisor and that Shariah status must be verified in Zoya/Musaffa.
 
 ## Steps
 
+0. **Auto-discovery (synchronous, runs first).** Run `python scripts/discover.py`.
+   It builds a fresh candidate pool (halal-ETF holdings + yfinance screens), runs
+   the PM gates, and **rewrites watchlist.md** with the top 20 by max benefit so
+   the idea-generation steps below ingest freshly discovered names with no manual
+   curation. Needs live Yahoo data — if it returns an empty pool / DATA_GAP (e.g.
+   this cloud sandbox blocks Yahoo), say so and carry on with the existing
+   watchlist.md; never fabricate names. Every discovered row is an UNVERIFIED lead
+   with EDGE NOT SUPPLIED — not a buy.
+
 1. Run and read the JSON from:
    - `python scripts/prices.py`    → price, return vs cost, value, weights
    - `python scripts/shariah.py`   → recorded compliance, staleness, ratio pre-check
