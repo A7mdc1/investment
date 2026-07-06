@@ -16,6 +16,22 @@ dcf:
   growth_5y: 0.30
   terminal_growth: 0.03
   discount_rate: 0.12
+
+# === PM decision record (see PM_FRAMEWORK.md) ===
+conviction: null               # moot — compliance gate overrides conviction either way
+thesis_one_liner: High-growth design platform, but off-mandate; exiting on compliance, not price.
+variant_view: null             # not applicable — this is a policy exit, not a mispricing call
+catalyst:
+  type: hard
+  desc: Config 2026 investor/analyst session
+  date: 2026-06-23
+initial_stop: null
+target_price: null
+target_method: null
+invalidation: null              # n/a — COMPLIANCE_GATE alone is sufficient grounds to exit
+invalidation_hit: false
+pre_mortem: [null]
+last_review: 2026-06-15
 ---
 
 ## Thesis
@@ -23,10 +39,18 @@ dcf:
 broker app — under the screening mandate this position is off-policy irrespective
 of price.
 
+## Variant view
+Not applicable — this is a compliance-driven exit, not a mispricing thesis. The
+mandate gate overrides any view on valuation or growth.
+
 ## Risks
 AI-native design competition (e.g. Google), premium valuation, operating losses,
 short interest >36%. 52-week lows despite Q1 beat (+46% rev) and raised guidance.
 
+## What would change my mind
+A re-screen in Zoya/Musaffa showing compliant status — the only thing that could
+reopen the question, since the gate is the sole decision driver.
+
 ## Notes
 Decision driver here is the compliance flag, not the chart. Next catalyst:
-Config 2026 investor session ~2026-06-24. Verify status in Zoya/Musaffa.
+Config 2026 investor session 2026-06-23 to 06-25. Verify status in Zoya/Musaffa.

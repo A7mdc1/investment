@@ -105,6 +105,34 @@ def main():
         if dd is not None and dd <= -float(cfg.get("drawdown_review_pct", 20)) / 100:
             fired.append(("REVIEW", "DRAWDOWN_REVIEW", f"down {dd:.0%} vs cost"))
 
+        # Asymmetry: reward:risk compresses as price closes in on target (PM_FRAMEWORK.md)
+        target = m.get("target_price")
+        reward_risk = None
+        if px and stop and target and px > stop:
+            reward_risk = (target - px) / (px - stop)
+            if reward_risk < float(cfg.get("reward_risk_compressed", 1.3)) and not m.get("trimmed"):
+                fired.append(("TRIM", "REWARD_RISK_COMPRESSED",
+                              f"R:R now {reward_risk:.1f}:1 — gap to target has closed"))
+        if px and target and px >= target:
+            fired.append(("SELL", "TARGET_REACHED", f"price {px:g} >= target {target:g}"))
+
+        # Dead money: thesis intact but no catalyst inside the window (opportunity cost)
+        catalyst_date = ((m.get("catalyst") or {}).get("date"))
+        dead_money_days = float(cfg.get("dead_money_days", 60))
+        if catalyst_date and not m.get("thesis_broken"):
+            try:
+                cdate = dt.date.fromisoformat(str(catalyst_date))
+                overdue = (dt.date.today() - cdate).days
+                if overdue > dead_money_days:
+                    fired.append(("REVIEW", "DEAD_MONEY",
+                                  f"catalyst ({catalyst_date}) passed {overdue}d ago with no re-rating"))
+            except ValueError:
+                pass
+
+        # Invalidation trigger (thesis-type break, distinct from price-based HARD_STOP)
+        if m.get("invalidation_hit"):
+            fired.append(("SELL", "INVALIDATION", f"invalidation trigger met: {m.get('invalidation')}"))
+
         verb = max((f[0] for f in fired), key=lambda x: RANK[x], default="HOLD")
         out.append({
             "ticker": m["ticker"], "name": m.get("name"), "trade_type": ttype,
@@ -114,6 +142,15 @@ def main():
             "trailing_stop": tech["chandelier_stop"] if tech else None,
             "ema_fast": tech["ema_fast"] if tech else None,
             "mom_6_1_pct": round(tech["mom_6_1"] * 100, 1) if (tech and tech["mom_6_1"] is not None) else None,
+            "conviction": m.get("conviction"),
+            "thesis_one_liner": m.get("thesis_one_liner"),
+            "variant_view": m.get("variant_view"),
+            "catalyst": m.get("catalyst"),
+            "target_price": target,
+            "reward_risk": round(reward_risk, 2) if reward_risk is not None else None,
+            "invalidation": m.get("invalidation"),
+            "pre_mortem": m.get("pre_mortem"),
+            "last_review": m.get("last_review"),
             "drivers": [{"verb": vb, "rule": r, "why": w} for (vb, r, w) in fired]
                        or [{"verb": "HOLD", "rule": "DEFAULT", "why": "no rule fired"}],
         })
@@ -121,7 +158,7 @@ def main():
     note = (f"Only {len(hs)} holding(s): concentration muted until "
             f">= {cfg.get('min_names_for_concentration',4)} names.") if small else None
     print(json.dumps({"note": note, "portfolio_notes": sorted(set(portfolio_notes)),
-                      "verdicts": out}, indent=2))
+                      "verdicts": out}, indent=2, default=str))
 
 
 if __name__ == "__main__":
