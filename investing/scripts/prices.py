@@ -15,7 +15,7 @@ def fetch_price(ticker: str) -> float | None:
     try:
         t = yf.Ticker(ticker)
         # fast_info is cheaper/more reliable than .info
-        px = t.fast_info.get("last_price")
+        px = t.fast_info.get("lastPrice")
         if px is None:
             hist = t.history(period="5d")
             px = float(hist["Close"].iloc[-1]) if not hist.empty else None

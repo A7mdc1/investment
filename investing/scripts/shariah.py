@@ -24,12 +24,14 @@ STALE_DAYS = 100         # re-screen if recorded verdict older than ~1 quarter
 def ratio_precheck(ticker: str) -> dict:
     try:
         t = yf.Ticker(ticker)
-        mcap = t.fast_info.get("market_cap")
+        mcap = t.fast_info.get("marketCap")
         bs = t.balance_sheet
         def row(*names):
             for n in names:
                 if n in bs.index:
-                    return float(bs.loc[n].iloc[0])
+                    v = float(bs.loc[n].iloc[0])
+                    if v == v:  # skip NaN, try the next candidate name
+                        return v
             return 0.0
         debt = row("Total Debt", "Long Term Debt") + row("Current Debt", "Short Long Term Debt")
         cash = row("Cash And Cash Equivalents", "Cash Cash Equivalents And Short Term Investments")

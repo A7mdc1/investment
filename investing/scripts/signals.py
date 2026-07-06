@@ -17,7 +17,7 @@ NEAR_LOW = 0.10        # within this % of 52w low -> note it
 
 def price(ticker: str):
     try:
-        return yf.Ticker(ticker).fast_info.get("last_price")
+        return yf.Ticker(ticker).fast_info.get("lastPrice")
     except Exception as e:
         print(f"[warn] price {ticker}: {e}", file=sys.stderr)
         return None
