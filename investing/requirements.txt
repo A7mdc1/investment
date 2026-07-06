@@ -1,4 +1,6 @@
-yfinance>=0.2.40
-PyYAML>=6.0
-ruamel.yaml>=0.18
-pandas>=2.0
+yfinance>=0.2.40       # price history, fast_info, cashflow (prices, dcf, technicals, signals)
+PyYAML>=6.0           # parse rules.md and holdings front-matter (read path)
+ruamel.yaml>=0.18     # update holdings YAML in-place, preserving comments (apply_txn)
+pandas>=2.0           # ATR, EMA, RSI, momentum calcs in technicals.py
+numpy>=1.26           # required by pandas; pinned explicitly for reproducibility
+requests>=2.31        # HTTP client used by yfinance; pinned to avoid security regressions
