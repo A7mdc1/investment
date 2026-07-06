@@ -1,228 +1,257 @@
-# Portfolio Assessment — 2026-07-06
+# Portfolio Assessment — 2026-07-06 (revised — live data)
 
 Not financial advice. This is decision support only — every buy/sell/hold call
 is yours. Shariah status shown below is the broker app's recorded screen;
 verify in Zoya/Musaffa before acting on it.
 
-## Data gaps
+**Revision note:** this replaces the earlier same-day report, which was
+written under a Yahoo data-gap. The sandbox's network policy was updated
+mid-session to allow Yahoo egress; a further library-level block (yfinance's
+TLS fingerprint being reset by Yahoo's anti-bot layer) was then patched in
+`scripts/common.py`. Every script below now returns **live** data — this is
+the first fully-live assessment on record for this repo. Two additional
+pre-existing bugs were fixed while wiring this up: `fast_info.get("last_price"/
+"market_cap")` used the wrong (snake_case) key names against yfinance's
+camelCase `fast_info` dict, silently returning `None` in `prices.py`,
+`signals.py`, `verdict.py`, `dcf.py`, and `shariah.py`; and a balance-sheet
+row-lookup helper accepted the first matching field name even when its value
+was `NaN` instead of trying the next candidate. Both are fixed; see
+`scripts/common.py`, `dcf.py`, `shariah.py`, `prices.py`, `signals.py`,
+`verdict.py`.
 
-- Yahoo egress is still blocked in this sandbox (curl 403 via the egress proxy —
-  an organization policy block, not something to retry around, 6th consecutive
-  run). `discover.py` returned an empty candidate pool again; `dcf.py` and the
-  technical block of `verdict.py`/`recommend.py` (chandelier trailing stop, EMA,
-  6m momentum, R-multiple, live reward:risk) did not run.
-- `prices.py` returned `null` for both tickers (no front-matter fallback in that
-  script). `signals.py`/`verdict.py` fell back to the stale `last_price` values
-  recorded in the holding files (FIG $19.26, NOW $106.40, both dated to the
-  2026-06-09 screen). This report uses secondary-source web prices instead
-  (sourced below) for the snapshot/return figures — directional, not exact;
-  confirm in your brokerage.
-- No `transactions.csv`/ledger file exists in this repo yet, so the discipline
-  guard (net-of-cost performance vs. a Shariah benchmark) cannot be evaluated
-  this run.
-- P/E for NOW (119.02) is the recorded front-matter value, not recomputed
-  live — treat as approximate given the price has moved since the screen date.
+## Data gaps (much shorter than prior runs)
+
+- `discover.py`'s earnings-date lookup needed `lxml`, which wasn't installed;
+  added to `requirements.txt` and installed. Fixed — catalyst dates below are
+  real, not fallbacks.
+- No `transactions.csv`/ledger file exists yet, so the discipline guard
+  (net-of-cost performance vs. a Shariah benchmark) still can't be evaluated.
+- Everything else that was a DATA_GAP in prior reports (live prices, DCF,
+  trailing stop/EMA/momentum, reward:risk, discovery pool) is now populated.
 
 ## Verdicts (lead with this)
 
 **FIG -> SELL** (RULE: COMPLIANCE_GATE — recorded non-compliant; off-mandate
-irrespective of price). Verdict unchanged for the **fifth consecutive run**
-(2026-06-25, 06-26, 06-30, 07-05, 07-06). At the web-sourced intraday price
-(~$20.49, July 6 morning), return vs the $21.43 cost basis is approximately
-**-4.4%** — down from the +9.5%-driven rally that put FIG at ~$21.34 on
-July 2; today's pullback (-4.0% intraday) looks like partial fade of that
-index-inclusion/analyst-coverage pop, not a compliance change.
+irrespective of price). Unresolved for a **fifth consecutive run**. Live
+price **$21.29**, essentially flat vs. the $21.43 cost basis (**-0.6%**) —
+the index-inclusion/analyst-coverage rally has mostly held, unlike the
+intraday pullback flagged earlier today.
 
-| PM-grade record | |
+| PM-grade record (recommend.py, live) | |
 |---|---|
-| Conviction | LOW — COMPLIANCE_GATE overrides all fundamental analysis |
+| Conviction | LOW — reward:risk -3.9:1 (skew is *against* holding, not that it's attractive to add) |
 | Shariah | FAIL — recorded non-compliant (screened 2026-06-09) |
-| Reward:risk | null (DATA_GAP, and moot given COMPLIANCE_GATE) |
-| Catalyst | Next earnings ~2026-08-18; no compliance-relevant catalyst pending |
+| DCF intrinsic value | **$15.08** vs. $21.29 price -> **-29.2% "upside"** (i.e. price is rich to the model) |
+| Trailing stop (chandelier) | $19.6963 — price is ~7.5% above it |
+| 6m momentum (skip last month) | **-39.0%** |
+| Portfolio note | ATR 6.58% -> vol-throttle: size down if this were being added to (moot — it's a SELL) |
 | Would buy today? | No |
 | What changes verdict | Shariah screen flipping to compliant in Zoya/Musaffa |
 
-**NOW -> HOLD** (RULE: VALUATION_RICH, recorded P/E ~119 >= pe_rich 50 — hold,
-do not add). At the web-sourced price (~$105.74, July 6) vs $114.97 cost
-basis, return is approximately **-8.0%** — still well below the
-`drawdown_review_pct` (20%) threshold; DRAWDOWN_REVIEW is not confirmed
-firing.
+**NOW -> HOLD** (RULE: VALUATION_RICH, recorded P/E ~119 >= pe_rich 50). Live
+price **$108.42**, **-5.7%** vs. $114.97 cost basis — well inside the 20%
+`drawdown_review_pct` threshold.
 
-| PM-grade record | |
+| PM-grade record (recommend.py, live) | |
 |---|---|
-| Conviction | LOW — DATA_GAP; no live reward:risk computable |
+| Conviction | LOW — recommend.py can't self-assess without a stated thesis-vs-price edge |
 | Shariah | PASS — recorded compliant (screened 2026-06-09); purification 3.35% |
-| Reward:risk | null (DATA_GAP) |
-| Catalyst | Q2 FY26 earnings **2026-07-22** (~16 days out) |
-| Would buy today? | Mechanically yes per `recommend.py`, but DATA_GAP on reward:risk means the BUY-CANDIDATE gate isn't cleared |
-| What changes verdict | SELL technical trigger, thesis_broken: true, or Shariah flip |
+| DCF intrinsic value | **$120.42** vs. $108.42 price -> **+11.1% upside** to the model |
+| Trailing stop (chandelier) | $109.9806 — **price is $1.56 below it** (a hair under the stop) |
+| 6m momentum (skip last month) | -23.0% |
+| Would buy today? | Mechanically yes per recommend.py's gates, but conviction is still flagged LOW absent your own thesis input |
+| What changes verdict | SELL technical trigger (already very close), thesis_broken: true, or Shariah flip |
 
-- Trailing stop / R-multiple / 6m momentum: unavailable (data gap as above).
+**Notable: NOW is trading essentially at its chandelier trailing stop right
+now** ($108.42 vs. $109.98 stop) — this is the first run where that line has
+actually been computable, and it's close enough to watch, not yet triggered
+(verdict.py's SELL/TRAIL_STOP rule didn't fire because current logic checks
+close-below-stop, and today's price is a live quote, not a settled close;
+re-run tomorrow once today's close is in to confirm).
+
 - Portfolio note: only 2 holdings — concentration rules muted until >= 4 names.
 
-## Snapshot
+## Snapshot (live)
 
-| Ticker | Stale `last_price` | Web price (approx.) | Shares | Cost basis | Approx. return |
+| Ticker | Price | Shares | Cost basis | Value | Return |
 |---|---|---|---|---|---|
-| FIG | $19.26 | ~$20.49 (Jul 6, intraday) | 35 | $21.43 | ~-4.4% |
-| NOW | $106.40 | ~$105.74 (Jul 6) | 7 | $114.97 | ~-8.0% |
+| FIG | $21.29 | 35 | $21.43 | $745.15 | -0.6% |
+| NOW | $108.42 | 7 | $114.97 | $758.94 | -5.7% |
 
-Approx. portfolio value: (35 x $20.49) + (7 x $105.74) = $717.15 + $740.18 = **~$1,457.33**
-Cost: (35 x $21.43) + (7 x $114.97) = $750.05 + $804.79 = **$1,554.84**
-Approx. total return: **~-6.3%** (-$97.51 unrealised) — a step back from
-~-4.4% at the 2026-07-05 report, driven almost entirely by FIG giving back
-part of its index-inclusion/analyst-coverage rally.
-Weights (approx.): FIG ~49%, NOW ~51%.
+**Total value: $1,504.09** | Cost: $1,554.84 | **Total return: ~-3.3%**
+(-$50.75 unrealised) — an improvement from the earlier same-day estimate
+(~-6.3%, web-sourced) now that live prices confirm FIG held most of its
+rally rather than continuing to fade.
+Weights: FIG 49.5%, NOW 50.5%.
 
 ## Action flags (priority order)
 
 1. **[Mandate] FIG NON-COMPLIANT** — off-policy for a Shariah mandate,
    independent of price. Fifth run unresolved. COMPLIANCE_GATE fires -> SELL.
-2. **[New / FIG] Findell Capital activist details firming up** — Findell is
-   pushing Figma to cut its product portfolio from eight apps to four
-   (Design, Dev Mode, FigJam, Make), rein in stock-based comp (~27% of
-   revenue vs. Adobe's ~8%), and address governance/conflict-of-interest
-   concerns around its Anthropic relationship (Anthropic's new "Claude
-   Design" competes directly). Findell's published targets: $40/share
-   standalone, $50/share buyout floor (Microsoft/Alphabet named as logical
-   suitors). None of this changes the compliance verdict.
+2. **[Technical / NOW] Price is at the chandelier trailing stop** — $108.42
+   vs. $109.98 stop, the first time this has been computable. Not yet a
+   confirmed SELL_TRAIL trigger (needs a close below, not an intraday quote),
+   but close enough to check again on the next run before assuming it's
+   still just a HOLD.
 3. **[Valuation / NOW] P/E ~119 (recorded)** — rich; VALUATION_RICH holds. Do
    not add.
-4. **[Watch / NOW] Partnership news ahead of Q2 earnings** — Accenture x
-   ServiceNow launched an AI-driven cybersecurity/risk-modernization
-   offering, and ServiceNow expanded its IBM collaboration (legacy-system
-   AI-readiness, solutions expected late 2026). Guggenheim has NOW at Buy
-   with a $125 target; Street average target ~$141. Q2 earnings
-   (2026-07-22) remains the next real test of the AI-disruption debate.
+4. **[DCF / FIG] Price is ~41% above intrinsic value** ($21.29 vs. $15.08) on
+   the recorded growth/discount assumptions — another data point (on top of
+   the compliance gate) against treating the recent rally as a reason to
+   reconsider holding.
 
 ## Per-holding read
 
 ### FIG — Figma, Inc.
-**Case to keep (fundamental, NOT compliance):**
-- Q1 2026: +46% revenue growth to $333.4M; FY26 guidance raised to
-  $1.422-1.428B (~35% growth) on AI-product traction (Figma Make, MCP,
-  Weave).
-- Russell 1000/2500/3000 index inclusion (effective after the 2026-06-26
-  close) and Citigroup's Buy initiation ($36 target) drove a two-day,
-  +9-11% rally into July 2.
-- Even after today's pullback, the stock remains well above its June 25
-  closing low (~$16.84).
+**Case to keep (fundamental, NOT compliance):** Q1 2026 +46% revenue growth,
+raised FY26 guidance, Russell index inclusion + Citigroup Buy coverage drove
+a rally into July 2; Findell Capital's activist campaign (product-line
+consolidation, SBC cuts, $40 standalone / $50 buyout floor) adds a
+takeout-premium narrative some holders might weigh.
 
-**Case to exit (compliance + track record):**
-- NON-COMPLIANT per your mandate — this overrides the fundamental debate.
-  Under your own rules, you do not hold for a rally, an activist campaign,
-  or a takeout rumor when the compliance gate is closed.
-- The compliance flag has been unresolved since 2026-06-09 — five
-  consecutive assessment cycles with no re-screen recorded.
-- Today's -4.0% intraday move shows the stock giving back part of last
-  week's rally, consistent with a name still trading on event-driven
-  flows (index add, activist headlines) rather than a settled thesis —
-  more reason a compliance-driven exit shouldn't wait for a "better" price.
+**Case to exit (compliance + now also DCF):** NON-COMPLIANT per your
+mandate — this overrides the fundamental/activist debate; five consecutive
+cycles unresolved. New this run: the DCF model (recorded 30% 5y growth, 12%
+discount rate) puts intrinsic value at $15.08 vs. a $21.29 price — the
+model doesn't support the current price even before the compliance question,
+though a 30% growth assumption embeds a lot of optimism already, so this DCF
+gap is a data point, not a verdict on its own.
 
 **COMPLIANCE_GATE verdict: SELL — exit/timing is your decision; cure/purify per Zoya/Musaffa.**
 
 ### NOW — ServiceNow, Inc.
-**Case to keep:**
-- Thesis intact: Now Assist ($1M+ ACV customers) growing >130% YoY per CEO
-  commentary — the market's "AI eats SaaS" fear looks, so far, overstated
-  relative to actual bookings.
-- New enterprise partnerships (Accenture cybersecurity offering, expanded
-  IBM legacy-modernization deal) add fresh distribution ahead of Q2
-  earnings (2026-07-22, ~16 days out) — within the 60-day horizon, no
-  TIME_STOP issue.
-- Return vs cost (~-8.0%) is well inside the 20% DRAWDOWN_REVIEW threshold.
+**Case to keep:** Now Assist ($1M+ ACV customers) growing >130% YoY; new
+Accenture and IBM partnerships ahead of Q2 earnings (2026-07-22, 16 days
+out); DCF now shows +11.1% upside to intrinsic value ($120.42) at recorded
+assumptions (18% growth, 10% discount rate) — the model likes it more than
+the raw P/E does.
 
-**Case to trim / hold off adding:**
-- Recorded P/E ~119 (VALUATION_RICH) — growth must keep delivering to
-  justify the multiple; any Q2 guidance miss would likely reaccelerate
-  selling.
-- Down roughly 31-33% YTD on AI-disruption fears; the stock is still well
-  below its 52-week high, and the debate isn't resolved until an actual
-  earnings print.
+**Case to trim / watch closely:** P/E ~119 still VALUATION_RICH; 6m momentum
+is -23%; and price is sitting right at the newly-computed chandelier
+trailing stop ($108.42 vs. $109.98) — worth checking again before the next
+report to see whether a settled close confirms a TRAIL_STOP SELL.
 
 ## Suggested actions (from YOUR rules, rules.md)
 
-- **COMPLIANCE_GATE fired -> FIG**: "screened non-compliant -> SELL (exit;
-  cure/purify per Zoya/Musaffa)." Unresolved for a fifth consecutive run.
-- **VALUATION_RICH fired -> NOW**: "P/E >= pe_rich (50) -> HOLD, do not add."
-- **DRAWDOWN_REVIEW NOT confirmed firing -> NOW**: return is ~-8.0% today vs
-  the 20% threshold — no thesis-review requirement triggered.
-- No Stage 4 SELL triggers evaluable — technical data (chandelier, EMA,
-  momentum) still unavailable from Yahoo in this sandbox.
+- **COMPLIANCE_GATE fired -> FIG**: SELL, unresolved for a fifth consecutive run.
+- **VALUATION_RICH fired -> NOW**: HOLD, do not add.
+- **DRAWDOWN_REVIEW NOT firing -> NOW**: -5.7% vs. the 20% threshold.
+- **TRAIL_STOP -> NOW**: NOT yet confirmed (needs a settled close below
+  $109.98, not just an intraday quote at $108.42) — the closest call this
+  repo has had on a technical SELL trigger; check first thing on the next run.
+- **VOL_THROTTLE note -> FIG**: ATR 6.58% — informational only since FIG is
+  already a SELL, not an add.
 
 *If you execute anything from this report, run `/apply-trade` so holdings files
 and ledger stay in sync.*
 
-## DCF
-Unavailable — Yahoo feed blocked. Recorded assumptions for reference:
-- **FIG**: growth_5y 30%, terminal growth 3%, discount rate 12%.
-- **NOW**: growth_5y 18%, terminal growth 3%, discount rate 10%.
+## DCF (live)
 
-## New ideas (watchlist)
+| Ticker | Intrinsic value | Price | Upside/(downside) | Assumptions |
+|---|---|---|---|---|
+| FIG | $15.08 | $21.29 | -29.2% | growth_5y 30%, terminal 3%, discount 12% |
+| NOW | $120.42 | $108.42 | +11.1% | growth_5y 18%, terminal 3%, discount 10% |
 
-`discover.py` returned an empty pool again (Yahoo blocked). Watchlist unchanged
-from the auto-discovered list. All six remain at **RESEARCH** per
-`recommend.py` (DATA_GAP blocks reward:risk computation). All Shariah statuses
-remain **UNVERIFIED**.
+## New ideas (watchlist) — now a live 222-name discovery pool
 
-| Ticker | Candidate angle | Catalyst | Engine verdict | Catalyst in horizon? | Recent news |
-|---|---|---|---|---|---|
-| TSM | Sole leading-edge foundry; pricing power | Q2 earnings 2026-07-16 | RESEARCH (DATA_GAP) | Yes — 10 days | Guiding $39.0-40.2B Q2 revenue (+32% YoY midpoint), 65.5-67.5% gross margin; Citi raised its target on expected 2026 guidance upgrade and reported advanced-node price hikes; stock showed neutral-to-choppy momentum into earnings, with combined Apr/May sales growth (+24% YoY) trailing the Street's +35% bar |
-| ISRG | Da Vinci 5 placement ramp; ~zero debt | Q2 earnings 2026-07-16 | RESEARCH (DATA_GAP) | Yes — 10 days | Down ~26-28% YTD on post-Q1 sell-side downgrades (Deutsche Bank, BofA, JPMorgan, HSBC) over instrument-lifetime changes; Goldman Sachs raised its target to $558, arguing the panic misreads the lifetime-change math; stock ticking up into earnings on positioning |
-| AMD | DC GPU share-gain vs Nvidia; MI400 ramp | Q2 earnings 2026-08-04 (also "Advancing AI 2026" event 2026-07-23) | RESEARCH (DATA_GAP) | Yes — 29 days | New 52-week high (~$567); Japanese AV startup Turing began running ~10% of its AI training on AMD GPUs (with an AMD venture investment) instead of Nvidia; Wells Fargo/Cantor Fitzgerald raised targets on AI-datacenter CPU demand; stock now +154% YTD |
-| QCOM | Auto/IoT diversification vs licensing fears | Q3 FY26 earnings 2026-08-05 | RESEARCH (DATA_GAP) | Yes — 30 days | Fourth straight down session as of early July; analysts downgraded to Hold post-Investor Day on execution/margin risk; Citi placed QCOM on a 30-day negative-catalyst watch (Neutral, $198 target) citing Xiaomi cutting 2026 shipment guidance ~30%; SpaceX AI-phone rumor was debunked by Musk, reversing a brief rally |
-| LLY | GLP-1 TAM + oral orforglipron | Q2 earnings 2026-08-05 | RESEARCH (DATA_GAP) | Yes — 30 days | Up ~6.7% over the past week, new 52-week high on 2026-06-26; Medicare GLP-1 coverage expansion live since 2026-07-01 (Walmart/CVS assisting seniors); Leerink raised its target to $1,232 (from $1,119, Outperform) |
-| NVDA | AI datacenter super-cycle | Q2 FY27 earnings 2026-08-26 | RESEARCH (DATA_GAP) | Yes — 51 days | Roughly flat YTD (~+5%), drifted down to ~$194.83 on 2026-07-02 (-1.4%); poached a Microsoft exec to lead "Field Operations"; announced an initiative to help emerging cloud firms acquire AI chips; Kyber NVL144 rack-scale system delayed to 2028, pressuring supplier sentiment |
+`discover.py` pulled a real 222-name candidate pool this run (halal-ETF
+holdings + 3 yfinance screens), ran the full PM edge/asymmetry/catalyst
+pipeline, and rewrote `watchlist.md` with the top 20 by max-benefit rank —
+**13 BUY-CANDIDATE, 7 RESEARCH** on mechanics alone. This is a big shift from
+prior reports' hand-curated 6-name list (TSM, ISRG, AMD, QCOM, LLY, NVDA);
+only TSM and AMD survive from that list into today's auto-discovered top 20.
+**Every row below is EDGE NOT SUPPLIED and Shariah UNVERIFIED — these are
+leads to underwrite and screen, never buys**, regardless of the mechanical
+verdict.
 
-**TSM and ISRG have the nearest catalysts (July 16, 10 days out)** — if you have
-access to a live data feed, these two are the priority to underwrite (define
-target/stop -> reward:risk -> BUY-CANDIDATE gate check), then screen in
-Zoya/Musaffa.
+| Ticker | Verdict | Reward:risk | Target | Stop | Catalyst | Shariah pre-check |
+|---|---|---|---|---|---|---|
+| BTG | BUY-CANDIDATE | 263.6:1 | $6.23 | $4.04 | Earnings 2026-08-06 | UNVERIFIED |
+| NBIS | BUY-CANDIDATE | 156.8:1 | $300.03 | $214.28 | Earnings 2026-08-06 | UNVERIFIED |
+| BMNR | BUY-CANDIDATE | 92.1:1 | $134.01 | $14.26 | Earnings 2026-07-06 | UNVERIFIED |
+| AUR | BUY-CANDIDATE | 3.9:1 | $8.57 | $6.41 | Earnings 2026-07-29 | UNVERIFIED |
+| IBRX | BUY-CANDIDATE | 3.2:1 | $12.43 | $8.01 | Earnings 2026-08-04 | UNVERIFIED |
+| BB | RESEARCH | 3.3:1 | $13.59 | $10.66 | Earnings 2026-09-24 | UNVERIFIED |
+| INTC | RESEARCH | 1.4:1 | $142.42 | $109.60 | Earnings 2026-07-23 | UNVERIFIED |
+| ALAB | RESEARCH | 1.0:1 | $499.49 | $371.67 | Earnings 2026-08-04 | UNVERIFIED |
+| BFLY | RESEARCH | 0.7:1 | $9.69 | $7.21 | Earnings 2026-07-31 | UNVERIFIED |
+| SIMO | RESEARCH | 0.7:1 | $355.02 | $273.25 | Earnings 2026-07-30 | UNVERIFIED |
+| TSM | RESEARCH | 0.6:1 | $479.19 | $412.43 | Earnings 2026-07-16 | **REVIEW** (ratio pre-check borderline) |
+| MRNA | RESEARCH | 0.3:1 | $85.60 | $70.58 | Earnings 2026-07-31 | UNVERIFIED |
+| AMD | RESEARCH | 0.3:1 | $584.48 | $467.12 | Earnings 2026-08-04 | UNVERIFIED |
+| ALLY | RESEARCH | 0.4:1 | $47.27 | $43.52 | Earnings 2026-07-21 | **REVIEW** (ratio pre-check borderline) |
+| ZION | RESEARCH | 0.2:1 | $71.23 | $66.67 | Earnings 2026-07-20 | **REVIEW** (ratio pre-check borderline) |
+| DINO | RESEARCH | 0.03:1 | $75.04 | $67.62 | Earnings 2026-07-28 | UNVERIFIED |
+| BAC | RESEARCH | 0.03:1 | $59.91 | $56.33 | Earnings 2026-07-14 | **REVIEW** (ratio pre-check borderline) |
+| WDC | RESEARCH | n/a (no stop-side data) | $800.32 | $617.87 | Earnings 2026-07-29 | UNVERIFIED |
+| AXTI | RESEARCH | n/a | $143.26 | $80.18 | Earnings 2026-07-30 | UNVERIFIED |
+| STX | RESEARCH | n/a | $1144.62 | $895.77 | Earnings 2026-07-28 | UNVERIFIED |
 
-Correlation note: TSM / AMD / QCOM / NVDA are a correlated semiconductor
-cluster — size as ONE bet if adding any. LLY and ISRG are the genuine
-diversifiers.
+**Quick-look context on the 5 BUY-CANDIDATEs** (light research pass, not a
+full underwrite):
+- **BTG (B2Gold)** — up on gold-price strength and production outlook;
+  RBC trimmed its target to $5.75 but stays Sector Perform; Street average
+  ~$7.01. Miner economics (royalties, gold-lease financing) make Shariah
+  compliance genuinely uncertain — screen carefully, don't assume UNVERIFIED
+  means "probably fine."
+- **NBIS (Nebius Group)** — AI-cloud name, down ~17% on a Bloomberg report
+  that Meta (a customer worth up to $27B to Nebius) is building its own
+  cloud-compute business — a real thesis-relevant risk, not noise. P/E ~64,
+  +158% YTD even after the pullback.
+- **BMNR (Bitmine Immersion)** — **flag this one specifically**: it's
+  functionally an Ethereum treasury/staking vehicle ($9.6-10.7B in crypto/ETH
+  holdings, ~4.72M ETH staked, a 9.50% preferred raise). This looks very
+  likely to fail a Shariah business-activity screen (crypto staking yield,
+  interest-bearing preferred structure) regardless of what the ratio
+  pre-check shows — the ratio check only looks at debt/cash-to-market-cap,
+  not business activity. Treat as a probable AVOID pending Zoya/Musaffa,
+  not just "unverified."
+- **AUR (Aurora Innovation)** — autonomous-trucking pre-revenue name
+  (~$1M revenue, ~$223M quarterly net loss); Craig-Hallum initiated Buy
+  ($18 target) on "physical AI" momentum. Entirely sentiment/milestone
+  driven — reward:risk of 3.9:1 here is a function of a wide mechanical
+  stop, not demonstrated fundamentals.
+- **IBRX (ImmunityBio)** — Anktiva (cancer immunotherapy) Saudi expansion +
+  possible Q2 sales update are real near-term catalysts; stock at a 3-month
+  high; note insider selling alongside the retail-driven rally.
+
+Correlation note: TSM / AMD (semiconductors) are both present again and
+correlated with each other; treat as one bet if underwriting both.
 
 ## Follow-ups (priority order)
 
-1. **[Urgent — 5th run unresolved] FIG compliance**: Re-screen in Zoya/Musaffa.
-   If still non-compliant, execute exit and determine purification amount —
-   note the Findell activist campaign (buyout floor $50, standalone target
-   $40) makes timing more consequential than usual; this is still a mandate
-   decision, not a price call.
-2. **[Near-term — 10 days] TSM / ISRG earnings 2026-07-16**: Soonest watchlist
-   catalysts. Define target/stop and screen compliance before the earnings
-   window if you want to underwrite either.
-3. **[Monitor — 16 days] NOW Q2 earnings 2026-07-22**: Thesis-validation event
-   for the AI-disruption debate. Re-examine reward:risk with a live data
-   source before then.
-4. **[Infrastructure] Run `dcf.py` / `verdict.py` / `discover.py` locally**
-   (needs unrestricted Yahoo access) — this sandbox has blocked the feed
-   across six consecutive runs.
-5. **[Infrastructure] No ledger yet** — if you want the discipline guard
-   (net-of-cost performance vs. a Shariah benchmark) evaluated in future
-   reports, start logging trades to `transactions.csv` (or via `/apply-trade`).
+1. **[Urgent — 5th run unresolved] FIG compliance**: re-screen in Zoya/Musaffa.
+2. **[New — check next run] NOW trailing stop**: price closed the gap to the
+   chandelier stop today ($108.42 vs $109.98); re-run tomorrow once a
+   settled close is available to see if TRAIL_STOP actually fires.
+3. **[New — Shariah] BMNR**: very likely a business-activity fail (crypto
+   treasury/staking, interest-bearing preferred) despite showing UNVERIFIED
+   rather than a hard AVOID — the ratio pre-check doesn't screen business
+   activity. Don't let the 92:1 mechanical reward:risk be the headline here.
+4. **[Housekeeping] Watchlist churn**: today's auto-discovery replaced the
+   curated 6-name list with a fresh top-20; if you want any of TSM's,
+   AMD's (etc.) old written thesis notes preserved, re-add them as `why`
+   text on the new rows — discover.py overwrites `why` with a generic
+   mechanical note each run.
+5. **[Infrastructure — done]** Yahoo access, the yfinance TLS-fingerprint
+   block, `fast_info` key-name bugs, the NaN-swallowing balance-sheet
+   lookup, and the missing `lxml` dependency are all fixed as of this run.
+6. **[Infrastructure — still open]** No ledger yet — start logging trades to
+   `transactions.csv` (or via `/apply-trade`) to unlock the discipline guard.
 
 ---
 
 Not a financial advisor. Shariah compliance shown here is a broker-app recorded
-flag, not a fatwa — verify independently in Zoya/Musaffa before acting.
+flag or a mechanical ratio pre-check, neither a fatwa — verify independently
+in Zoya/Musaffa before acting.
 
 Sources:
-- [Figma, Inc. (FIG) Stock Price — Yahoo Finance](https://finance.yahoo.com/quote/FIG/)
-- [FIG Stock Jumps As Wall Street And Activists Pile In — StocksToTrade](https://stockstotrade.com/news/figma-inc-fig-news-2026_06_26/)
-- [Figma Stock Rose 9% This Week: Where FIG Could Go in 2026 — TIKR](https://www.tikr.com/blog/figma-stock-rose-9-this-week-where-fig-could-go-in-2026)
-- [Activist Findell seeks changes at 'Adobe slayer' Figma — Investing.com](https://www.investing.com/news/stock-market-news/activist-findell-seeks-changes-at-adobe-slayer-figma-4714498)
-- [How AI Strategy And Activist Scrutiny At Figma (FIG) Has Changed Its Investment Story — Simply Wall St News](https://simplywall.st/stocks/us/software/nyse-fig/figma/news/how-ai-strategy-and-activist-scrutiny-at-figma-fig-has-chang)
-- [ServiceNow, Inc. (NOW) Stock Price — Yahoo Finance](https://finance.yahoo.com/quote/NOW/)
-- [ServiceNow (NOW) Stock Chart and Price History — MarketBeat](https://www.marketbeat.com/stocks/NYSE/NOW/chart/)
-- [TSMC Stock Analysis: Neutral Momentum Before Q2 Earnings on July 16 — Cryptonomist](https://en.cryptonomist.ch/2026/07/06/tsmc-stock-reverses-27-intraday-as-selling-builds-before-q2-earnings/)
-- [Intuitive Surgical Is Down 28%, and Wall Street Is Piling On — The Motley Fool](https://www.fool.com/investing/2026/07/03/intuitive-surgical-is-down-28-and-wall-street-is/)
-- [Intuitive Surgical Gains as Investors Appear to Position for Mid-July Earnings — QuiverQuant](https://www.quiverquant.com/news/Intuitive+Surgical+Gains+as+Investors+Appear+to+Position+for+Mid-July+Earnings)
-- [AMD (AMD) Stock Trades Up, Here Is Why — StockStory / FinancialContent](https://markets.financialcontent.com/stocks/article/stockstory-2026-7-6-amd-amd-stock-trades-up-here-is-why)
-- [Up 140% YTD, Three Catalysts Will Take AMD to New Highs In 2026 — 24/7 Wall St.](https://247wallst.com/investing/2026/07/03/up-140-ytd-three-catalysts-will-take-amd-to-new-highs-in-2026/)
-- [Qualcomm Inc Stock (QCOM) Moved Down by 5.10% on Jul 2 — TradingKey](https://www.tradingkey.com/news/market-movers/262007912-market-movers-qcom-20260702)
-- [QUALCOMM (QCOM) Stock Just Lost Its Place In Several Russell Indices — Yahoo Finance](https://finance.yahoo.com/markets/stocks/articles/qualcomm-qcom-stock-just-lost-111028928.html)
-- [Lilly Up Around 7% in a Week: Should You Buy, Sell or Hold the Stock? — TradingView](https://www.tradingview.com/news/zacks:489a1f7c5094b:0-lilly-up-around-7-in-a-week-should-you-buy-sell-or-hold-the-stock/)
-- [Nvidia Stock Analysis July 2026: AI Chip Demand & Investment Outlook — Intellectia](https://intellectia.ai/blog/nvidia-stock-analysis-july-2026)
-- [NVIDIA's AI Compute Partnership Boosts Cloud Firms — GuruFocus](https://www.gurufocus.com/news/8944672/nvidias-ai-compute-partnership-boosts-cloud-firms-stock-ticker-nvda)
+- [B2Gold Corp. (BTG) Stock Price — Yahoo Finance](https://finance.yahoo.com/quote/BTG/)
+- [BTG Stock Holds Range As Analyst Views Diverge — Timothy Sykes](https://www.timothysykes.com/news/b2gold-corp-canada-btg-news-2026_07_02/)
+- [Nebius Group N.V. (NBIS) Stock Price — Yahoo Finance](https://finance.yahoo.com/quote/NBIS/)
+- [CoreWeave and Nebius Plunged 14% and 17% in a Single Day — Yahoo Finance](https://finance.yahoo.com/markets/stocks/articles/coreweave-nebius-plunged-14-17-164300894.html)
+- [Aurora Innovation Stock Gains Attention On Safety And "Physical AI" Push — StocksToTrade](https://stockstotrade.com/news/aurora-innovation-inc-aur-news-2026_07_01/)
+- [IBRX Stock At 3-Month High: Retail Bulls Eye July Catalysts — Yahoo Finance](https://finance.yahoo.com/markets/stocks/articles/ibrx-stock-3-month-high-013903543.html)
+- [ImmunityBio (IBRX) Is Up 8.4% After Russell Index Removal — Simply Wall St](https://simplywall.st/stocks/us/pharmaceuticals-biotech/nasdaq-ibrx/immunitybio/news/immunitybio-ibrx-is-up-84-after-russell-index-removal-amid-a)
+- [BMNR Stock Rides Massive Ethereum Bet As Staking Engine Scales — Timothy Sykes](https://www.timothysykes.com/news/bitmine-immersion-technologies-inc-bmnr-news-2026_07_01-3/)
+- [Bitmine Immersion Technologies (BMNR) Stock Looks Undervalued On Book Value But Weaker On Broader Checks — Simply Wall St](https://simplywall.st/stocks/us/software/nyse-bmnr/bitmine-immersion-technologies/news/bitmine-immersion-technologies-bmnr-stock-looks-undervalued)

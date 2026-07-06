@@ -24,7 +24,9 @@ def base_fcf(t: yf.Ticker) -> float | None:
         def row(*names):
             for n in names:
                 if n in cf.index:
-                    return float(cf.loc[n].iloc[0])
+                    v = float(cf.loc[n].iloc[0])
+                    if v == v:  # skip NaN, try the next candidate name
+                        return v
             return None
         fcf = row("Free Cash Flow")
         if fcf is not None:
@@ -44,7 +46,7 @@ def dcf(ticker: str, a: dict) -> dict:
         fcf = base_fcf(t)
         fi = t.fast_info
         shares = fi.get("shares")
-        price = fi.get("last_price")
+        price = fi.get("lastPrice")
         if not fcf or not shares:
             return {"ok": False, "note": "missing FCF or share count"}
         g, tg, r = a["growth_5y"], a["terminal_growth"], a["discount_rate"]
@@ -59,7 +61,10 @@ def dcf(ticker: str, a: dict) -> dict:
             bs = t.balance_sheet
             def b(*n):
                 for x in n:
-                    if x in bs.index: return float(bs.loc[x].iloc[0])
+                    if x in bs.index:
+                        v = float(bs.loc[x].iloc[0])
+                        if v == v:  # skip NaN, try the next candidate name
+                            return v
                 return 0.0
             net_debt = b("Total Debt", "Long Term Debt") - b(
                 "Cash And Cash Equivalents", "Cash Cash Equivalents And Short Term Investments")

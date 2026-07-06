@@ -29,7 +29,7 @@ def load_cfg() -> dict:
 def price_of(t, fallback):
     try:
         import yfinance as yf
-        p = yf.Ticker(t).fast_info.get("last_price")
+        p = yf.Ticker(t).fast_info.get("lastPrice")
         if p:
             return float(p)
     except Exception as e:

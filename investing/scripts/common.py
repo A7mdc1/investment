@@ -4,6 +4,29 @@ import glob
 import os
 import yaml
 
+# yfinance's default curl_cffi impersonation ("chrome" -> latest fingerprint)
+# gets connection-reset by Yahoo's anti-bot layer; chrome110 still works.
+# Each yfinance submodule does `from ._http import new_session` at its own
+# import time, so patching yfinance._http alone doesn't reach those already-
+# bound references -- every module holding one must be repatched directly.
+def _yf_session_workaround():
+    from curl_cffi import requests as _backend
+    return _backend.Session(impersonate="chrome110")
+
+
+def _patch_yfinance_session():
+    import yfinance._http as _http
+    import yfinance.base as _base
+    import yfinance.data as _data
+    import yfinance.multi as _multi
+    import yfinance.scrapers.history as _history
+
+    for module in (_http, _base, _data, _multi, _history):
+        module.new_session = _yf_session_workaround
+
+
+_patch_yfinance_session()
+
 HOLDINGS_DIR = os.path.join(os.path.dirname(__file__), "..", "holdings")
 
 
