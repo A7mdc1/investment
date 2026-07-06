@@ -29,7 +29,7 @@ def load_cfg() -> dict:
 def price_of(t, fallback):
     try:
         import yfinance as yf
-        p = yf.Ticker(t).fast_info.get("last_price")
+        p = yf.Ticker(t).fast_info.get("lastPrice")
         if p:
             return float(p)
     except Exception as e:
@@ -37,9 +37,12 @@ def price_of(t, fallback):
     return fallback
 
 
-def main():
-    cfg = load_cfg()
-    hs = load_holdings()
+def compute(cfg=None, hs=None) -> dict:
+    """Resolve every holding's verb + drivers. Returns the same dict main() prints."""
+    if cfg is None:
+        cfg = load_cfg()
+    if hs is None:
+        hs = load_holdings()
     small = len(hs) < int(cfg.get("min_names_for_concentration", 4))
 
     vals = []
@@ -105,7 +108,7 @@ def main():
         if dd is not None and dd <= -float(cfg.get("drawdown_review_pct", 20)) / 100:
             fired.append(("REVIEW", "DRAWDOWN_REVIEW", f"down {dd:.0%} vs cost"))
 
-        # Asymmetry: reward:risk compresses as price closes in on target (PM_FRAMEWORK.md)
+        # PM-grade: R:R compresses as price approaches target — TRIM when gap has closed
         target = m.get("target_price")
         reward_risk = None
         if px and stop and target and px > stop:
@@ -116,7 +119,7 @@ def main():
         if px and target and px >= target:
             fired.append(("SELL", "TARGET_REACHED", f"price {px:g} >= target {target:g}"))
 
-        # Dead money: thesis intact but no catalyst inside the window (opportunity cost)
+        # PM-grade: catalyst passed without a re-rating — dead money opportunity cost
         catalyst_date = ((m.get("catalyst") or {}).get("date"))
         dead_money_days = float(cfg.get("dead_money_days", 60))
         if catalyst_date and not m.get("thesis_broken"):
@@ -129,7 +132,7 @@ def main():
             except ValueError:
                 pass
 
-        # Invalidation trigger (thesis-type break, distinct from price-based HARD_STOP)
+        # PM-grade: thesis-type invalidation trigger (distinct from price-based HARD_STOP)
         if m.get("invalidation_hit"):
             fired.append(("SELL", "INVALIDATION", f"invalidation trigger met: {m.get('invalidation')}"))
 
@@ -142,6 +145,7 @@ def main():
             "trailing_stop": tech["chandelier_stop"] if tech else None,
             "ema_fast": tech["ema_fast"] if tech else None,
             "mom_6_1_pct": round(tech["mom_6_1"] * 100, 1) if (tech and tech["mom_6_1"] is not None) else None,
+            # PM decision record fields (from holdings front-matter, never invented)
             "conviction": m.get("conviction"),
             "thesis_one_liner": m.get("thesis_one_liner"),
             "variant_view": m.get("variant_view"),
@@ -157,8 +161,11 @@ def main():
 
     note = (f"Only {len(hs)} holding(s): concentration muted until "
             f">= {cfg.get('min_names_for_concentration',4)} names.") if small else None
-    print(json.dumps({"note": note, "portfolio_notes": sorted(set(portfolio_notes)),
-                      "verdicts": out}, indent=2, default=str))
+    return {"note": note, "portfolio_notes": sorted(set(portfolio_notes)), "verdicts": out}
+
+
+def main():
+    print(json.dumps(compute(), indent=2, default=str))
 
 
 if __name__ == "__main__":

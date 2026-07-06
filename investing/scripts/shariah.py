@@ -20,27 +20,101 @@ DEBT_MAX = 0.33          # interest-bearing debt / market cap
 LIQUID_MAX = 0.33        # (cash + short-term investments) / market cap
 STALE_DAYS = 100         # re-screen if recorded verdict older than ~1 quarter
 
+# Business-activity knockout — sectors/industries whose CORE business fails the
+# Shariah screen before any ratio math. Substring match (lowercased) against
+# yfinance's sector/industry strings. Conservative: catches the unambiguous
+# hard-fails (conventional finance, alcohol, tobacco, gambling, adult, defense
+# primes, cannabis). Everything else still needs Zoya/Musaffa for the revenue
+# breakdown — this list only stops obvious non-compliants from ranking at all.
+HARAM_SECTOR_TERMS = ("financial services", "financial data",)
+HARAM_INDUSTRY_TERMS = (
+    "bank", "insurance", "capital markets", "credit services",
+    "mortgage", "asset management", "financial conglomerates",
+    "alcoholic", "brewer", "distiller", "winer",
+    "tobacco", "gambling", "casino",
+    "aerospace & defense", "adult", "cannabis", "drug manufacturers - specialty & generic cannabis",
+)
+
+
+def business_precheck(ticker: str, info: dict | None = None) -> dict:
+    """Core-business knockout from sector/industry metadata. Returns
+    {"ok": bool|None, "flags": [...], "sector": ..., "industry": ...}.
+    ok=None when metadata is unavailable (unknown, NOT a pass)."""
+    try:
+        if info is None:
+            info = yf.Ticker(ticker).info or {}
+        sector = (info.get("sector") or "").strip()
+        industry = (info.get("industry") or "").strip()
+        if not sector and not industry:
+            return {"ok": None, "flags": [], "sector": None, "industry": None,
+                    "note": "no sector/industry metadata"}
+        flags = []
+        sec_l, ind_l = sector.lower(), industry.lower()
+        for term in HARAM_INDUSTRY_TERMS:
+            if term in ind_l:
+                flags.append(f"industry '{industry}' matches '{term}' — core business fails screen")
+                break
+        if not flags:
+            for term in HARAM_SECTOR_TERMS:
+                if term in sec_l:
+                    flags.append(f"sector '{sector}' — conventional finance, core business fails screen")
+                    break
+        return {"ok": not flags, "flags": flags, "sector": sector, "industry": industry}
+    except Exception as e:
+        print(f"[warn] business precheck failed for {ticker}: {e}", file=sys.stderr)
+        return {"ok": None, "flags": [], "sector": None, "industry": None, "note": str(e)}
+
 
 def ratio_precheck(ticker: str) -> dict:
+    """Business-activity knockout FIRST, then AAOIFI-style ratio heads-up.
+
+    Missing balance-sheet rows are UNKNOWN, never 0.0 — the old default let
+    banks (whose yfinance layouts often lack 'Total Debt' rows) compute
+    debt=0 and sail through 'clean'."""
     try:
         t = yf.Ticker(ticker)
-        mcap = t.fast_info.get("market_cap")
+
+        biz = business_precheck(ticker)
+        if biz.get("ok") is False:
+            return {"ok": False, "flags": biz["flags"],
+                    "sector": biz.get("sector"), "industry": biz.get("industry")}
+
+        mcap = t.fast_info.get("marketCap")
         bs = t.balance_sheet
         def row(*names):
+            """First present, non-NaN row among candidates; None if all missing."""
             for n in names:
                 if n in bs.index:
-                    return float(bs.loc[n].iloc[0])
-            return 0.0
-        debt = row("Total Debt", "Long Term Debt") + row("Current Debt", "Short Long Term Debt")
-        cash = row("Cash And Cash Equivalents", "Cash Cash Equivalents And Short Term Investments")
+                    v = float(bs.loc[n].iloc[0])
+                    if v == v:  # skip NaN, try the next candidate name
+                        return v
+            return None
+        # 'Total Debt' already includes current debt — only sum the components
+        # when Total Debt itself is missing (the old code double-counted).
+        debt = row("Total Debt")
+        if debt is None:
+            ltd = row("Long Term Debt")
+            cur = row("Current Debt", "Short Long Term Debt")
+            debt = (ltd or 0.0) + (cur or 0.0) if (ltd is not None or cur is not None) else None
+        cash = row("Cash Cash Equivalents And Short Term Investments",
+                   "Cash And Cash Equivalents")
         if not mcap:
-            return {"ok": None, "note": "no market cap"}
-        debt_r, liq_r = debt / mcap, cash / mcap
+            return {"ok": None, "note": "no market cap", "business_ok": biz.get("ok")}
+        if debt is None and cash is None:
+            return {"ok": None, "note": "no debt/cash rows in balance sheet — ratios unknown",
+                    "business_ok": biz.get("ok")}
         flags = []
-        if debt_r > DEBT_MAX: flags.append(f"debt/mcap {debt_r:.0%} > {DEBT_MAX:.0%}")
-        if liq_r > LIQUID_MAX: flags.append(f"liquid/mcap {liq_r:.0%} > {LIQUID_MAX:.0%}")
-        return {"ok": not flags, "debt_ratio": round(debt_r, 3),
-                "liquid_ratio": round(liq_r, 3), "flags": flags}
+        debt_r = debt / mcap if debt is not None else None
+        liq_r = cash / mcap if cash is not None else None
+        if debt_r is not None and debt_r > DEBT_MAX:
+            flags.append(f"debt/mcap {debt_r:.0%} > {DEBT_MAX:.0%}")
+        if liq_r is not None and liq_r > LIQUID_MAX:
+            flags.append(f"liquid/mcap {liq_r:.0%} > {LIQUID_MAX:.0%}")
+        out = {"ok": not flags, "flags": flags, "business_ok": biz.get("ok")}
+        if debt_r is not None: out["debt_ratio"] = round(debt_r, 3)
+        else: out["debt_ratio_note"] = "no debt rows — unknown, verify in Zoya/Musaffa"
+        if liq_r is not None: out["liquid_ratio"] = round(liq_r, 3)
+        return out
     except Exception as e:
         print(f"[warn] ratio precheck failed for {ticker}: {e}", file=sys.stderr)
         return {"ok": None, "note": str(e)}

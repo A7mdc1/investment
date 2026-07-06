@@ -38,6 +38,7 @@ compliance_gate: true            # holdings verdict gate; set false to disable h
 target_method: r_multiple        # r_multiple | structure | atr (structure uses lower of struct vs R)
 reward_risk: 3.0                 # swing default 3:1 (use 2.0 for shorter holds)
 atr_target_mult: 4.0             # for target_method=atr: entry + k*ATR
+target_atr_mult: 10.0            # cap technical_target_stop at price + N*ATR (crashed-stock sanity bound)
 t1_r: 1.5                        # Target 1 at +1.5R -> take partial, stop to breakeven
 t1_fraction: 0.5                 # fraction of position sold at T1
 t2_r: 3.0                        # Target 2 at +3R -> trail remainder to here
@@ -49,14 +50,32 @@ duration_days_catalyst: 45       # ~20-60 trading-day PEAD drift window
 duration_days_core: 365
 time_stop_progress: 0.5          # if < this fraction of the way to T1 by duration -> time-stop
 
-# === PM DECISION ENGINE (see PM_FRAMEWORK.md) ===
+# === PM DECISION ENGINE (recommend.py / verdict.py — see PM_FRAMEWORK.md) ===
+# recommend.py / discover.py use reward_risk_min / catalyst_horizon_days for new ideas.
+# verdict.py uses reward_risk_compressed / dead_money_days for existing holdings.
+reward_risk_min: 3.0              # min R:R for BUY-CANDIDATE — new ideas (recommend.py / discover.py)
+reward_risk_min_swing: 2.0        # relaxed floor for short-horizon swing setups
+catalyst_horizon_days: 60         # no catalyst inside this window -> cap at RESEARCH (recommend.py)
+reward_risk_compressed: 1.3       # current R:R below this on open holding -> TRIM (verdict.py)
+dead_money_days: 60               # catalyst passed N days ago, no re-rating -> REVIEW (verdict.py)
+edge_required_for_buy: true       # no variant view articulated -> cap at RESEARCH
+review_cadence_days: 90           # re-underwrite at least this often even with no trigger
 
-min_reward_risk: 3.0             # asymmetry gate for BUY-CANDIDATE on new ideas (institutional default)
-min_reward_risk_swing: 2.0       # relaxed gate for short-horizon swing setups
-reward_risk_compressed: 1.3      # current R:R below this on an open position -> TRIM (gap has closed)
-dead_money_days: 60              # thesis intact, no catalyst within this many days -> REVIEW (opportunity cost)
-edge_required_for_buy: true      # no articulated variant view (why the market is wrong) -> cap at RESEARCH
-review_cadence_days: 90          # re-underwrite at least this often even with no trigger
+# === AUTO-DISCOVERY (discover.py) ===
+# Each LOCAL run auto-builds a candidate pool, runs the PM pipeline, and rewrites
+# watchlist.md with the top-N by "max benefit". Needs live Yahoo data (blocked in
+# sandboxes). Shariah ratio FLAG = absolute AVOID; clean stays UNVERIFIED (you
+# still confirm the business screen in Zoya/Musaffa). EDGE is never auto-supplied.
+discover_top_n: 20                # how many candidates to keep + write to watchlist.md
+discover_etfs: [SPUS]             # halal-ETF holdings as the Shariah-friendlier base pool
+discover_screens: [growth_technology_stocks, undervalued_large_caps, most_actives]
+discover_screen_count: 100        # names to pull per yfinance predefined screen
+discover_w_rr: 0.5                # max-benefit rank weight: asymmetry (reward:risk) leads
+discover_w_score: 0.3             # ...then the mechanical signal score (screener.py)
+discover_w_catalyst: 0.2          # ...then catalyst proximity (closer earnings ranks higher)
+discover_rr_cap: 10.0             # winsorize R:R before ranking (kills 600:1 stop-artifact outliers)
+discover_rr_floor: 3.0            # BUY-CANDIDATE floor for zero-edge discovered ideas (stricter than swing)
+# reward_risk() also floors downside at 0.5*ATR — you cannot risk less than the noise
 ---
 
 # Decision rules — YOUR pre-committed policy
@@ -107,6 +126,15 @@ not divine instruction — but break them only on a written reason, not in the m
 - A variant view (why the market is wrong) and reward:risk >= min_reward_risk are
   required before BUY-CANDIDATE, not just a technical confirmation (edge + asymmetry gates).
 Size = risk_per_trade_pct / stop-distance, capped at max_position_pct & portfolio_heat_pct.
+
+`recommend.py` (new-idea funnel: screen -> RESEARCH -> BUY-CANDIDATE / AVOID)
+adds two gates ahead of sizing, run in this order:
+- EDGE_GATE | no stated reason the market is wrong (no thesis/"why" supplied) |
+  capped at RESEARCH — a mechanical score alone is not an edge.
+- ASYMMETRY_GATE | upside:downside < reward_risk_min (or reward_risk_min_swing
+  for swing setups) | capped at RESEARCH; AVOID if there's no defined downside at all.
+- CATALYST_GATE | no catalyst within catalyst_horizon_days | capped at RESEARCH
+  ("dead money" — see Stage 4 TIME_STOP for existing holdings).
 
 ## Stage 3 — Manage (HOLD / TRIM)
 - HOLD while price > trailing stop AND thesis intact AND you'd buy it here today
