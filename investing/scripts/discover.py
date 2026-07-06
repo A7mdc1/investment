@@ -175,8 +175,8 @@ def classify(pc_ok, rr, cat_days, horizon: int, rr_floor: float):
 
 def build_record(ticker, source, tech, pc, cat_iso, cat_days, score, cfg, horizon, rr_floor) -> dict:
     px = tech.get("price")
-    target, stop = recommend.technical_target_stop(tech, px)
-    rr = recommend.reward_risk(px, target, stop)
+    target, stop = recommend.technical_target_stop(tech, px, cfg)
+    rr = recommend.reward_risk(px, target, stop, atr=tech.get("atr"))
     verdict, why = classify(pc.get("ok"), rr, cat_days, horizon, rr_floor)
     if pc.get("ok") is True:
         sh_note = "ratio pre-check clean — confirm business screen in Zoya/Musaffa"
@@ -207,7 +207,12 @@ def rank_and_select(records: list[dict], cfg: dict) -> list[dict]:
     horizon = int(cfg.get("catalyst_horizon_days", 60))
     top_n = int(cfg.get("discover_top_n", 20))
 
-    rr_n = screener._norm([r.get("reward_risk") for r in records])
+    # Winsorize R:R before min-max normalization: one degenerate outlier
+    # (stop a cent below price -> 600:1) would otherwise compress every
+    # legitimate 2-3:1 setup to ~0 and own the top of the ranking.
+    rr_cap = float(cfg.get("discover_rr_cap", 10.0))
+    rr_n = screener._norm([min(r["reward_risk"], rr_cap) if r.get("reward_risk") is not None
+                           else None for r in records])
     sc_n = screener._norm([r.get("score") for r in records])
     for i, r in enumerate(records):
         cd = r.get("catalyst_days")
@@ -264,7 +269,10 @@ def main() -> None:
     cfg = load_cfg()
     today = dt.date.today()
     horizon = int(cfg.get("catalyst_horizon_days", 60))
-    rr_floor = float(cfg.get("reward_risk_min_swing", 2.0))
+    # Discovered ideas carry ZERO edge by definition, so hold them to the
+    # stricter institutional floor (reward_risk_min, 3:1), not the relaxed
+    # swing floor that assumes you already have a thesis.
+    rr_floor = float(cfg.get("discover_rr_floor", cfg.get("reward_risk_min", 3.0)))
 
     pool = discover_pool(cfg)
     print(f"[info] discovered pool: {len(pool)} names", file=sys.stderr)

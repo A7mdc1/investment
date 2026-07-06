@@ -7,11 +7,16 @@ never buy calls. You make every decision; you verify every compliance status.
 ## How these candidates were built (PM decision-logic pipeline)
 
 Per docs/portfolio-manager-decision-logic.md, applied in order:
-1. **Shariah knockout FIRST.** Only names that PRE-screen plausibly compliant are
-   listed (permissible core business + low interest-bearing debt). This is a
-   heads-up, NOT a pass — you MUST confirm each in Zoya/Musaffa before any add.
-   AAOIFI 30/30/5 is stricter than this repo's 33/33 ratio pre-check; borderline
-   names are flagged REVIEW, not listed.
+1. **Shariah knockout FIRST.** The pipeline runs a business-activity knockout
+   (conventional finance, alcohol, tobacco, gambling, defense primes, etc. from
+   sector/industry metadata) plus a rough 33/33 ratio pre-check. Names it flags
+   are dropped; names with MISSING data stay listed as UNVERIFIED — unknown is
+   NOT a pass. AAOIFI 30/30/5 and the <5% impermissible-revenue test are
+   stricter than anything here: you MUST confirm each name in Zoya/Musaffa
+   before any add.
+   NOTE: rows below dated 2026-07-06 or earlier were generated BEFORE the
+   business-activity knockout existed and may include hard-fail names (banks);
+   re-run discover.py locally to refresh.
 2. **Edge test.** The `why` column is a *candidate angle to underwrite* — the
    question the market is arguing about — NOT a proven variant view. The doc is
    explicit: until you can state specifically why consensus is wrong, an idea

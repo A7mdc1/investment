@@ -80,24 +80,41 @@ def catalyst_days_out(note: str | None, today: dt.date):
         return None
 
 
-def reward_risk(price, target, stop):
-    """upside/downside off a price, a target, and a downside stop. None if undefined."""
+def reward_risk(price, target, stop, atr=None, min_atr_frac=0.5):
+    """upside/downside off a price, a target, and a downside stop. None if undefined.
+
+    Degenerate-denominator guard: when price sits right on top of the stop
+    (common with a chandelier trail after consolidation), (price - stop) -> 0
+    and R:R explodes into artifacts (665:1 etc). If ATR is known, floor the
+    downside at min_atr_frac * ATR — you cannot risk less than the noise."""
     if price is None or target is None or stop is None or price <= stop:
         return None
     downside = price - stop
+    if atr is not None and atr > 0:
+        downside = max(downside, min_atr_frac * atr)
     if downside <= 0:
         return None
     return (target - price) / downside
 
 
-def technical_target_stop(tech: dict | None, price):
+def technical_target_stop(tech: dict | None, price, cfg: dict | None = None):
     """Fallback target/stop from technicals when no DCF/initial_stop exists:
-    target = 52w high (next overhead resistance), stop = chandelier trail."""
+    target = 52w high (next overhead resistance), stop = chandelier trail.
+
+    Sanity bound: for a crashed stock the 52w high is a different regime, not
+    resistance (e.g. price $15, "target" $134 -> fake 8x upside). Cap the
+    target at price + target_atr_mult * ATR — the far edge of what a swing
+    horizon can plausibly reach."""
     if not tech or price is None:
         return None, None
+    cfg = cfg or {}
     stop = tech.get("chandelier_stop")
     dist = tech.get("dist_52w_high_pct")
     target = price / (1 + dist / 100) if dist is not None else None
+    atr = tech.get("atr")
+    if target is not None and atr is not None and atr > 0:
+        cap = price + float(cfg.get("target_atr_mult", 10.0)) * atr
+        target = min(target, cap)
     return target, stop
 
 
@@ -156,11 +173,11 @@ def holding_record(h: dict, vdict: dict, cfg: dict, today: dt.date) -> dict:
     tgt_method = "DCF intrinsic value"
     target = dcf_res.get("intrinsic_value") if dcf_res.get("ok") else None
     if target is None:
-        target, _ = technical_target_stop(tech, px)
-        tgt_method = "technical level (52w high)"
+        target, _ = technical_target_stop(tech, px, cfg)
+        tgt_method = "technical level (52w high, ATR-capped)"
 
     stop = m.get("initial_stop") or (tech.get("chandelier_stop") if tech else None)
-    rr = reward_risk(px, target, stop)
+    rr = reward_risk(px, target, stop, atr=tech.get("atr") if tech else None)
     thesis_text = h.get("thesis", "")
     has_thesis = bool(thesis_text and len(thesis_text) > 40)
     broken = bool(m.get("thesis_broken"))
@@ -201,8 +218,8 @@ def idea_record(idea: dict, cfg: dict, today: dt.date) -> dict:
     px = tech.get("price") if tech else None
     shariah_stat, shariah_note = shariah_gate_idea(ticker)
 
-    target, stop = technical_target_stop(tech, px)
-    rr = reward_risk(px, target, stop)
+    target, stop = technical_target_stop(tech, px, cfg)
+    rr = reward_risk(px, target, stop, atr=tech.get("atr") if tech else None)
     cat_days = catalyst_days_out(idea.get("catalyst_note"), today)
     horizon = int(cfg.get("catalyst_horizon_days", 60))
     has_edge = bool(idea.get("why"))
