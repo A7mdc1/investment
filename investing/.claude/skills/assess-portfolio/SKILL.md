@@ -12,16 +12,20 @@ financial advisor and that Shariah status must be verified in Zoya/Musaffa.
 
 ## Steps
 
-0. **Auto-discovery (synchronous, runs first).** Run `python scripts/discover.py`.
-   It builds a fresh candidate pool (halal-ETF holdings + yfinance screens), applies
-   the liquidity floor + Shariah/asymmetry/catalyst gates, and **writes `leads.md`**
-   (machine-generated, overwritten every run) with the top 20 by max benefit. It
-   does NOT touch `watchlist.md` (hand-curated). Needs live Yahoo data — if it
-   returns an empty pool / DATA_GAP (e.g. this cloud sandbox blocks Yahoo), say so
-   and carry on with the existing `watchlist.md`; never fabricate names. Every
-   `leads.md` row is a **LEAD** — EDGE NOT SUPPLIED, Shariah UNVERIFIED, no setup
-   card — surface them as leads to underwrite, never as buys. A lead is promoted
-   only when the owner writes `setups/<ticker>.md` and screens it in Zoya/Musaffa.
+0. **Auto-discovery + scaffold (synchronous, runs first).** Run
+   `python scripts/discover.py`, then `python scripts/scaffold.py --all-leads`.
+   Discovery builds a fresh candidate pool (halal-ETF holdings + yfinance screens),
+   applies the liquidity floor + Shariah/asymmetry/catalyst gates, and **writes
+   `leads.md`** (machine-generated, overwritten every run). It does NOT touch
+   `watchlist.md` (hand-curated). Scaffold then auto-fills a **DRAFT setup card**
+   (`setups/<ticker>.md`, `status: draft`) for every lead without one — complete
+   proposed trade plans (entry/stop/target/logic/invalidation) from Yahoo formula
+   outputs, so the report can present them for review. Needs live Yahoo data — if
+   discovery returns an empty pool / DATA_GAP (e.g. this cloud sandbox blocks
+   Yahoo), say so and carry on with the existing `watchlist.md` + `setups/`; never
+   fabricate names or levels. **Two invariants:** a DRAFT card can never reach
+   BUY-CANDIDATE until the owner reviews it and sets `status: planned`; the scaffold
+   never writes `shariah: compliant` (only a human Zoya/Musaffa screen does).
 
 1. Run and read the JSON from:
    - `python scripts/prices.py`    → price, return vs cost, value, weights
@@ -81,6 +85,18 @@ financial advisor and that Shariah status must be verified in Zoya/Musaffa.
      top. UNVERIFIED can never be BUY-CANDIDATE; discovery leads are `LEAD` until a
      card is written and the name is screened in Zoya/Musaffa. Never a price target
      framed as a promise of returns.
+   - **Draft & planned setups**: render the setup cards in `setups/`.
+     - **DRAFT cards** (machine-filled by scaffold.py) — show the full proposed
+       plan under the verdict line
+       `RESEARCH — DRAFT awaiting your review (set status: planned to approve)`:
+       setup_type, entry/stop/target with R:R, the entry-trigger / stop / target /
+       invalidation logic text, the gap plan, and the Shariah pre-check comment.
+       Present these as *proposals to review and edit*, never as buys. Make clear
+       every level is a formula output, and that approval means editing what you
+       disagree with and flipping `status: planned`.
+     - **PLANNED/LIVE cards** — render as a normal PM record; this is the ONLY
+       place a BUY-CANDIDATE can appear, and only when the card is complete AND
+       carries a human-verified `shariah: compliant` (fresh). Draft cards can never.
    - **Follow-ups**: short prioritized checklist.
 
 ## Rules

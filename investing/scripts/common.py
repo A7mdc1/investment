@@ -77,3 +77,30 @@ def load_setups(setups_dir: str = SETUPS_DIR) -> list[dict]:
 def setups_by_ticker(setups_dir: str = SETUPS_DIR) -> dict:
     """Map UPPER(ticker) -> setup card dict, for O(1) lookup by ticker."""
     return {str(s["meta"]["ticker"]).upper(): s for s in load_setups(setups_dir)}
+
+
+# ---- liquidity helpers (shared by discover.py and scaffold.py) ---------------
+import sys as _sys
+
+
+def fetch_mcap(ticker: str):
+    """Market cap via fast_info, best-effort. None on any failure."""
+    try:
+        import yfinance as yf
+        return yf.Ticker(ticker).fast_info.get("marketCap")
+    except Exception as e:
+        print(f"[warn] mcap {ticker}: {e}", file=_sys.stderr)
+        return None
+
+
+def passes_liquidity(mcap, avg_dollar_vol, cfg: dict):
+    """Liquidity floor: illiquidity is untradeable 'reward'. A KNOWN value below
+    a floor drops the lead; missing data (None) does not drop (unknown != fail).
+    Returns (ok: bool, reason: str)."""
+    min_mcap = float(cfg.get("screen_min_mcap", 500e6))
+    min_adv = float(cfg.get("screen_min_avg_dollar_vol", 5e6))
+    if mcap is not None and mcap < min_mcap:
+        return False, f"mcap ${mcap/1e6:.0f}M < ${min_mcap/1e6:.0f}M floor"
+    if avg_dollar_vol is not None and avg_dollar_vol < min_adv:
+        return False, f"avg $vol ${avg_dollar_vol/1e6:.1f}M < ${min_adv/1e6:.0f}M floor"
+    return True, ""

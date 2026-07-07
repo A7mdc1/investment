@@ -10,30 +10,38 @@ trade **quantity** or sizing; those are your decisions.
 ## The workflow (swing-first)
 
 ```
-discover.py  →  leads.md  →  setups/<ticker>.md  →  Zoya/Musaffa  →  recommend.py  →  you size & execute  →  /apply-trade  →  journal.py
-   (machine,      (machine,     (you: the ~10-min       (you: verify        (re-gates:            (your call on          (logs entry+exit)   (monthly review
-    wide net)      refreshed)    setup card = edge)      compliance)          BUY-CANDIDATE)        volume & size)                          by setup type)
+discover.py → leads.md → scaffold.py → DRAFT cards → you review/edit + status:planned → Zoya/Musaffa → recommend.py → you size & execute → /apply-trade → journal.py
+  (machine,    (machine,   (machine     (proposed      (approve: research,          (you verify   (re-gates:         (your call on        (logs         (review by
+   wide net)    refreshed)  fills cards) trade plans)   edit, flip to planned)       compliance)   BUY-CANDIDATE)     volume & size)       entry+exit)   setup type)
 ```
 
 1. **Discover** — `python scripts/discover.py` builds a pool (halal-ETF holdings +
    yfinance screens), applies liquidity floors + Shariah/asymmetry/catalyst gates,
-   and writes **`leads.md`** (machine, overwritten each run). It never touches
-   `watchlist.md`.
-2. **Scan leads** — pick the few worth planning.
-3. **Write a setup card** — copy `setups/_template.md` → `setups/<ticker>.md`
-   (~10 min): entry trigger, stop logic, target logic, earnings plan, invalidation.
-   *This card is the "edge"* — not a fundamental thesis.
-4. **Screen** the name in Zoya/Musaffa; record `shariah.status`/date on the card.
+   and writes **`leads.md`** (machine, overwritten each run). Never touches `watchlist.md`.
+2. **Scaffold** — `python scripts/scaffold.py --all-leads` auto-fills a **DRAFT**
+   setup card (`status: draft`) for every lead: complete proposed plans
+   (entry/stop/target/logic/invalidation) from Yahoo formula outputs. The
+   assessment report presents these for review.
+3. **Review & approve** — read the draft plans, do your own research, edit anything
+   you disagree with, then set **`status: planned`**. *The card is the "edge"* — a
+   defined setup, not a fundamental thesis. A draft can never become a buy candidate
+   on its own.
+4. **Screen** the name in Zoya/Musaffa; record `shariah.status: compliant`/date on
+   the card (the scaffold leaves it `unverified` — only you set compliant).
 5. **Recommend** — `python scripts/recommend.py` re-gates. Only a completed,
-   compliant, fresh card with reward:risk ≥ floor and a catalyst in the window
-   clears to **BUY-CANDIDATE**. Everything else is RESEARCH; discovery output is
-   only ever **LEAD**.
+   **planned**, compliant, fresh card with reward:risk ≥ floor and a catalyst in the
+   window clears to **BUY-CANDIDATE**. Everything else is RESEARCH; discovery output
+   is only ever **LEAD**; a draft is only ever RESEARCH.
 6. **You size and execute** — informed by the gap-adjusted numbers (a stop does
    not execute through an earnings gap).
 7. **Journal** — `/apply-trade` logs entry and exit to `journal.csv`.
 8. **Review** — `python scripts/journal.py` reports **per-setup expectancy**:
    which setups pay you, hit rate, avg win/loss R, slippage on stops, and P&L vs a
    benchmark counterfactual.
+
+**Two invariants:** a machine-filled DRAFT card can never reach BUY-CANDIDATE
+without your `status: planned` approval; the scaffold never writes
+`shariah: compliant` — only a human Zoya/Musaffa screen does.
 
 ## Layout
 ```
@@ -44,7 +52,7 @@ investing/
 ├── .claude/skills/                   # /assess-portfolio /screen-ideas /discover /apply-trade
 ├── holdings/         one .md per open position (_example.md = template)
 ├── setups/           one card per prospective trade (_template.md, README.md)
-├── scripts/          discover.py recommend.py verdict.py journal.py apply_txn.py …
+├── scripts/          discover.py scaffold.py recommend.py verdict.py journal.py apply_txn.py …
 ├── leads.md          MACHINE-generated (discover.py overwrites it) — do not hand-edit
 ├── watchlist.md      HAND-curated — no script writes it
 └── reports/          dated assessments land here

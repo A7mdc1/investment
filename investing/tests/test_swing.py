@@ -19,6 +19,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 import discover
 import journal
 import recommend
+import scaffold
+import common
 
 TODAY = dt.date(2026, 7, 7)
 
@@ -257,6 +259,100 @@ def test_journal_expectancy():
     print("ok  journal per-setup expectancy + slippage + benchmark counterfactual")
 
 
+SCAFFOLD_CFG = {"atr_stop_mult": 3.0, "t1_r": 1.5, "t2_r": 3.0,
+                "catalyst_horizon_days": 60, "duration_days_swing": 21,
+                "screen_min_avg_dollar_vol": 5e6, "reward_risk_min_swing": 2.0,
+                "risk_per_trade_pct": 1.5, "earnings_gap_assumption_pct": 25,
+                "target_atr_mult": 10.0}
+FULL_TECH = {"price": 445.10, "atr": 4.10, "ema_fast": 430.0, "ema_slow": 400.0,
+             "chandelier_stop": 438.90, "dist_52w_high_pct": -1.0, "avg_dollar_vol": 120e6}
+
+
+def _parse_card(text):
+    import yaml
+    return yaml.safe_load(text.split("---", 2)[1])
+
+
+def test_scaffold_render_full_card():
+    st = scaffold.pick_setup_type(FULL_TECH, None, SCAFFOLD_CFG)
+    card = scaffold.render_card("NOW", FULL_TECH, "2026-08-05",
+                                {"avg_dollar_vol": 120e6, "ok": True}, {"ok": True, "flags": []},
+                                SCAFFOLD_CFG, st, TODAY)
+    m = _parse_card(card)
+    # Every plan field non-empty; status draft; shariah unverified even when clean.
+    for f in ("entry_trigger", "stop_logic", "target_logic", "invalidation"):
+        assert m[f] and str(m[f]).strip(), (f, m[f])
+    for f in ("entry_price", "stop_price", "target_price", "holding_window_days"):
+        assert m[f] is not None, (f, m[f])
+    assert m["status"] == "draft", m["status"]
+    assert m["shariah"]["status"] == "unverified", m["shariah"]
+
+    # Parses via load_setups() from a temp dir
+    import tempfile
+    d = tempfile.mkdtemp()
+    open(os.path.join(d, "now.md"), "w").write(card)
+    loaded = common.load_setups(d)
+    assert len(loaded) == 1 and loaded[0]["meta"]["status"] == "draft"
+    print("ok  scaffold render: full draft card, unverified, parses via load_setups")
+
+
+def test_scaffold_setup_type_heuristic():
+    # earnings within horizon -> earnings_run (even if near a high)
+    assert scaffold.pick_setup_type(FULL_TECH, 20, SCAFFOLD_CFG) == "earnings_run"
+    # near the 52w high, no near catalyst -> breakout
+    assert scaffold.pick_setup_type({"dist_52w_high_pct": -2.0}, None, SCAFFOLD_CFG) == "breakout"
+    # well below the high, no catalyst -> pullback
+    assert scaffold.pick_setup_type({"dist_52w_high_pct": -30.0}, None, SCAFFOLD_CFG) == "pullback"
+    # entry/trigger/invalidation text varies per type
+    pull = _parse_card(scaffold.render_card("X", {"price": 50, "atr": 1.0, "ema_fast": 48.0,
+                       "chandelier_stop": 46.0, "dist_52w_high_pct": -30.0, "avg_dollar_vol": 9e6},
+                       None, {"avg_dollar_vol": 9e6, "ok": True}, {"ok": True}, SCAFFOLD_CFG, "pullback", TODAY))
+    assert "EMA20" in pull["entry_trigger"] and "EMA20" in pull["invalidation"], pull
+    print("ok  scaffold setup-type heuristic + per-type text")
+
+
+def test_scaffold_missing_data():
+    # No technicals at all -> a valid, parseable card with unavailable comments.
+    card = scaffold.render_card("ZZZ", None, None, {"avg_dollar_vol": None, "ok": True},
+                                {"ok": None, "note": "no data"}, SCAFFOLD_CFG, "breakout", TODAY)
+    m = _parse_card(card)
+    assert m["entry_price"] is None and m["stop_price"] is None and m["target_price"] is None, m
+    assert m["status"] == "draft" and m["shariah"]["status"] == "unverified"
+    assert "scaffold:" in card and "unavailable" in card
+    print("ok  scaffold missing-data path writes a valid null card")
+
+
+def test_scaffold_draft_gate_and_refuse_overwrite():
+    # A fully-filled DRAFT card caps at RESEARCH with the review-and-approve message.
+    draft = _card(status="draft")
+    sg = recommend.evaluate_setup(draft, TODAY)
+    assert sg["is_draft"] is True and sg["status_ok"] is False and sg["complete"] is True, sg
+
+    cfg = {"reward_risk_min_swing": 2.0, "catalyst_horizon_days": 60,
+           "risk_per_trade_pct": 1.5, "earnings_gap_assumption_pct": 25, "target_atr_mult": 10.0}
+    idea = {"ticker": "TEST", "why": None, "catalyst_note": "2026-07-27 earnings"}
+    restore = _patch(monkey_tech=_synthetic_tech(), ratio_ok=True)
+    try:
+        rec = recommend.idea_record(idea, cfg, TODAY, {"TEST": draft})
+        assert rec["verdict"] == "RESEARCH", rec["verdict"]
+        assert "machine-filled DRAFT" in rec["conviction_why"], rec["conviction_why"]
+        # Owner approves: flip to planned -> BUY-CANDIDATE (card already compliant+fresh)
+        approved = recommend.idea_record(idea, cfg, TODAY, {"TEST": _card(status="planned")})
+        assert approved["verdict"] == "BUY-CANDIDATE", (approved["verdict"], approved["conviction_why"])
+    finally:
+        restore()
+
+    # Refuse to overwrite an existing card without --force.
+    import tempfile
+    d = tempfile.mkdtemp()
+    p = os.path.join(d, "aaa.md")
+    open(p, "w").write("existing\n")
+    written, msg = scaffold.scaffold_one("AAA", SCAFFOLD_CFG, TODAY, "breakout", force=False, setups_dir=d)
+    assert written is False and "exists" in msg, msg
+    assert open(p).read() == "existing\n", "file must be unchanged"
+    print("ok  draft gate caps at RESEARCH; approval flips; overwrite refused without --force")
+
+
 if __name__ == "__main__":
     test_evaluate_setup()
     test_idea_record_buy_candidate_gate()
@@ -266,4 +362,8 @@ if __name__ == "__main__":
     test_liquidity_floor()
     test_discover_writes_leads_not_watchlist()
     test_journal_expectancy()
+    test_scaffold_render_full_card()
+    test_scaffold_setup_type_heuristic()
+    test_scaffold_missing_data()
+    test_scaffold_draft_gate_and_refuse_overwrite()
     print("\nall swing-refactor changes verified offline")
