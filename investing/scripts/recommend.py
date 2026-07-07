@@ -27,8 +27,14 @@ import yaml
 import dcf as dcf_mod
 import technicals
 import verdict as verdict_mod
-from common import load_holdings
+from common import load_holdings, setups_by_ticker
 from shariah import STALE_DAYS, ratio_precheck
+
+# Setup-card fields that must be non-empty for the card to count as a real edge.
+SETUP_REQUIRED_FIELDS = ("entry_trigger", "stop_logic", "target_logic",
+                         "earnings_plan", "invalidation")
+SETUP_ACTIVE_STATUS = ("planned", "live")
+EARNINGS_PLAN_VALUES = ("exit_before", "hold_through_sized_down", "no_earnings_in_window")
 
 
 def first_thesis_line(thesis_text: str) -> str | None:
@@ -148,6 +154,103 @@ def shariah_gate_idea(ticker: str):
     return "UNVERIFIED", f"ratio pre-check unavailable ({pc.get('note', 'no data')}) — must screen in Zoya/Musaffa"
 
 
+def evaluate_setup(setup: dict | None, today: dt.date, stale_days: int = STALE_DAYS) -> dict:
+    """Assess a pre-trade setup card as the swing 'edge' (Change 1/2).
+
+    Returns {found, complete, missing[], status, status_ok, shariah_ok,
+    shariah_status, shariah_note, setup_type, earnings_plan, holding_window_days}.
+    A card is a real edge only when every SETUP_REQUIRED_FIELD is non-empty,
+    earnings_plan is a recognized value, and status is planned|live."""
+    if not setup:
+        return {"found": False, "complete": False,
+                "missing": ["no setup card — create setups/<ticker>.md from _template.md"],
+                "status": None, "status_ok": False, "shariah_ok": False,
+                "shariah_status": None, "shariah_note": "no setup card",
+                "setup_type": None, "earnings_plan": None, "holding_window_days": None}
+
+    m = setup["meta"]
+    missing = []
+    for f in SETUP_REQUIRED_FIELDS:
+        v = m.get(f)
+        if v is None or (isinstance(v, str) and not v.strip()):
+            missing.append(f)
+    plan = m.get("earnings_plan")
+    if plan is not None and plan not in EARNINGS_PLAN_VALUES:
+        missing.append(f"earnings_plan (got '{plan}', expected one of {'/'.join(EARNINGS_PLAN_VALUES)})")
+    status = m.get("status")
+    status_ok = status in SETUP_ACTIVE_STATUS
+
+    # Shariah freshness comes from the CARD's own screen, not the ratio pre-check:
+    # a BUY-CANDIDATE needs a real compliant verdict recorded within stale_days.
+    sh = m.get("shariah") or {}
+    sh_status = sh.get("status", "unverified")
+    screened = sh.get("screened")
+    fresh, screen_note = False, "no screen date"
+    if screened:
+        try:
+            age = (today - dt.date.fromisoformat(str(screened))).days
+            fresh = age <= stale_days
+            screen_note = f"screened {screened} ({age}d ago)" + ("" if fresh else " — STALE, re-screen")
+        except ValueError:
+            screen_note = f"unparseable screen date '{screened}'"
+    shariah_ok = (sh_status == "compliant") and fresh
+    if sh_status != "compliant":
+        shariah_note = f"card Shariah status '{sh_status}' — verify compliant in Zoya/Musaffa"
+    else:
+        shariah_note = f"card Shariah compliant, {screen_note}"
+
+    return {"found": True, "complete": not missing, "missing": missing,
+            "status": status, "status_ok": status_ok,
+            "shariah_ok": shariah_ok, "shariah_status": sh_status, "shariah_note": shariah_note,
+            "setup_type": m.get("setup_type"), "earnings_plan": plan,
+            "holding_window_days": m.get("holding_window_days")}
+
+
+def gap_sizing(px, stop, cat_days, sg: dict, cfg: dict) -> dict:
+    """Gap-aware sizing + earnings-plan check (Change 3).
+
+    A stop does NOT execute through an overnight earnings gap, so for any trade
+    whose earnings fall inside the holding window the record must price the gap
+    instead of pretending the stop-distance math holds:
+      - exit_before            -> flat before the print; stop-based sizing valid
+      - hold_through_sized_down-> emit BOTH the stop-based max AND a gap-adjusted
+                                  size (risk / assumed-gap), "size for the print"
+      - anything else in-window-> GAP_PLAN_MISSING (blocks BUY-CANDIDATE)
+    """
+    risk = float(cfg.get("risk_per_trade_pct", 1.5))
+    gap_pct = float(cfg.get("earnings_gap_assumption_pct", 25))
+    window = sg.get("holding_window_days") or int(cfg.get("catalyst_horizon_days", 60))
+
+    stop_based = None
+    if px and stop and px > stop:
+        stop_dist_pct = (px - stop) / px * 100
+        if stop_dist_pct > 0:
+            stop_based = round(risk / stop_dist_pct * 100, 1)
+
+    earnings_in_window = cat_days is not None and 0 <= cat_days <= window
+    plan = sg.get("earnings_plan")
+    gap_adj, plan_missing = None, False
+
+    if not earnings_in_window:
+        note = "no earnings inside the holding window — stop-based sizing applies"
+    elif plan == "exit_before":
+        note = "earnings in window; plan is flat before the print — stop math valid"
+    elif plan == "hold_through_sized_down":
+        gap_adj = round(risk / gap_pct * 100, 1)
+        note = (f"earnings in window, holding through — size for the print, not the stop: "
+                f"gap-adjusted {gap_adj}% (assumes {gap_pct:.0f}% adverse gap)"
+                + (f" vs stop-based {stop_based}%" if stop_based is not None else ""))
+    else:
+        plan_missing = True
+        note = ("GAP_PLAN_MISSING: earnings inside the holding window but no valid "
+                "earnings_plan (exit_before | hold_through_sized_down) — a stop does "
+                "not execute through an overnight gap; state the plan on the card")
+
+    return {"stop_based_position_pct": stop_based, "gap_adjusted_position_pct": gap_adj,
+            "earnings_in_window": earnings_in_window, "gap_plan_missing": plan_missing,
+            "gap_risk_note": note}
+
+
 def conviction(rr, has_thesis: bool, broken: bool):
     """Heuristic proxy only — a real conviction call needs YOUR variant view."""
     if broken:
@@ -212,59 +315,89 @@ def holding_record(h: dict, vdict: dict, cfg: dict, today: dt.date) -> dict:
     }
 
 
-def idea_record(idea: dict, cfg: dict, today: dt.date) -> dict:
+def idea_record(idea: dict, cfg: dict, today: dt.date, setups: dict | None = None) -> dict:
     ticker = idea["ticker"]
     tech = technicals.fetch(ticker, cfg)
     px = tech.get("price") if tech else None
+
+    # Shariah: a ratio/business-activity knockout (banks etc.) is the only hard
+    # AVOID for a new idea. Otherwise the CARD's recorded verdict gates BUY-CANDIDATE.
+    pc = ratio_precheck(ticker)
     shariah_stat, shariah_note = shariah_gate_idea(ticker)
+
+    # EDGE for a swing trade = a completed setup card (Change 1/2), not a `why` string.
+    setup = (setups or {}).get(ticker.upper())
+    sg = evaluate_setup(setup, today, STALE_DAYS)
+    has_edge = sg["found"] and sg["complete"] and sg["status_ok"]
 
     target, stop = technical_target_stop(tech, px, cfg)
     rr = reward_risk(px, target, stop, atr=tech.get("atr") if tech else None)
     cat_days = catalyst_days_out(idea.get("catalyst_note"), today)
     horizon = int(cfg.get("catalyst_horizon_days", 60))
-    has_edge = bool(idea.get("why"))
+    floor = float(cfg.get("reward_risk_min_swing", 2.0))
+    gap = gap_sizing(px, stop, cat_days, sg, cfg)  # Change 3: gap-aware sizing
+
+    def edge_reasons():
+        r = []
+        if not sg["found"]:
+            r.append("EDGE_GATE: no setup card — create setups/%s.md from _template.md" % ticker.lower())
+        else:
+            if sg["missing"]:
+                r.append("EDGE_GATE: setup card incomplete — fill " + ", ".join(sg["missing"]))
+            if not sg["status_ok"]:
+                r.append(f"EDGE_GATE: setup status '{sg['status']}' — must be planned|live")
+        return r
 
     verb, why = "RESEARCH", []
-    if shariah_stat == "FAIL":
-        verb = "AVOID"  # a Shariah knockout is the only hard AVOID for a new idea
-        why.append(shariah_note)
+    if pc.get("ok") is False:
+        verb = "AVOID"  # ratio/business knockout — the only hard AVOID for a new idea
+        why.append(f"SHARIAH_KNOCKOUT: {shariah_note}")
     elif px is None:
         # Data gap, NOT a knockout: with no price we can't run the asymmetry gate,
         # so the idea stays RESEARCH ("not investable today"), not excluded. The
         # qualitative gates (edge, catalyst) still report so you see what's missing.
         why.append("DATA_GAP: no price feed — can't compute reward:risk; underwrite when data is available")
-        if not has_edge:
-            why.append("EDGE_GATE: no stated reason the market is wrong — supply `why` in watchlist.md")
+        why.extend(edge_reasons())
         if cat_days is None:
             why.append(f"CATALYST_GATE: no catalyst date given (state one within {horizon}d)")
         elif cat_days > horizon:
             why.append(f"CATALYST_GATE: catalyst {cat_days}d out > {horizon}d horizon")
     else:
-        if not has_edge:
-            why.append("EDGE_GATE: no stated reason the market is wrong — supply `why` in watchlist.md")
+        why.extend(edge_reasons())
         if rr is None:
             why.append("ASYMMETRY_GATE: no defined target/stop — can't compute reward:risk")
-        elif rr < float(cfg.get("reward_risk_min_swing", 2.0)):
-            why.append(f"ASYMMETRY_GATE: reward:risk {rr:.1f}:1 below swing floor "
-                       f"{cfg.get('reward_risk_min_swing', 2.0)}:1")
+        elif rr < floor:
+            why.append(f"ASYMMETRY_GATE: reward:risk {rr:.1f}:1 below swing floor {floor}:1")
         if cat_days is None:
             why.append(f"CATALYST_GATE: no catalyst date given (state one within {horizon}d)")
         elif cat_days > horizon:
             why.append(f"CATALYST_GATE: catalyst {cat_days}d out > {horizon}d horizon")
-        if shariah_stat == "REVIEW":
-            why.append(shariah_note)
-        if (has_edge and rr is not None and rr >= float(cfg.get("reward_risk_min_swing", 2.0))
+        # Shariah must be VERIFIED compliant + fresh on the card — UNVERIFIED can
+        # never be BUY-CANDIDATE (the whole point of Change 2).
+        if not sg["shariah_ok"]:
+            why.append(f"SHARIAH_GATE: {sg['shariah_note']}")
+        # A stop does not execute through an earnings gap — an in-window print with
+        # no valid earnings_plan blocks BUY-CANDIDATE (Change 3).
+        if gap["gap_plan_missing"]:
+            why.append(gap["gap_risk_note"])
+        if (has_edge and rr is not None and rr >= floor
                 and cat_days is not None and 0 <= cat_days <= horizon
-                and shariah_stat != "REVIEW"):
+                and sg["shariah_ok"] and not gap["gap_plan_missing"]):
             verb = "BUY-CANDIDATE"
-            why.append(f"compliance: {shariah_note}")
+            why = [f"cleared setup/asymmetry/catalyst/Shariah gates ({sg['setup_type'] or 'setup'}); "
+                   f"reward:risk {rr:.1f}:1, catalyst {cat_days}d out, {sg['shariah_note']}; "
+                   f"{gap['gap_risk_note']}"]
 
     return {
         "ticker": ticker, "name": None, "kind": "idea",
         "verdict": verb,
         "conviction": "LOW" if verb != "BUY-CANDIDATE" else conviction(rr, has_edge, False)[0],
-        "conviction_why": "; ".join(why) if why else "cleared edge/asymmetry/catalyst gates",
+        "conviction_why": "; ".join(why) if why else "cleared setup/asymmetry/catalyst/Shariah gates",
         "shariah_status": shariah_stat, "shariah_note": shariah_note,
+        "setup_card": sg["found"], "setup_type": sg["setup_type"],
+        "setup_complete": sg["complete"] and sg["status_ok"],
+        "setup_shariah_status": sg["shariah_status"],
+        "earnings_plan": sg["earnings_plan"],
         "thesis_one_liner": idea.get("why"),
         "catalyst": idea.get("catalyst_note"),
         "target_price": target, "target_method": "technical level (52w high)" if target else None,
@@ -272,10 +405,16 @@ def idea_record(idea: dict, cfg: dict, today: dt.date) -> dict:
         "downside_price": stop,
         "downside_pct": round((px - stop) / px * 100, 1) if (stop and px) else None,
         "reward_risk": round(rr, 2) if rr is not None else None,
-        "time_horizon": "swing", "position_pct": None,
+        "time_horizon": "swing",
+        "position_pct": gap["stop_based_position_pct"],
+        "stop_based_position_pct": gap["stop_based_position_pct"],
+        "gap_adjusted_position_pct": gap["gap_adjusted_position_pct"],
+        "earnings_in_window": gap["earnings_in_window"],
+        "gap_risk_note": gap["gap_risk_note"],
         "risk_per_trade_pct": cfg.get("risk_per_trade_pct"),
-        "key_risks": None, "invalidation": None, "stop": stop,
-        "what_changes_mind": "a stated thesis, a defined stop/target, or a dated catalyst appearing",
+        "key_risks": None, "invalidation": (setup["meta"].get("invalidation") if setup else None),
+        "stop": stop,
+        "what_changes_mind": "a completed setup card, a verified compliant screen, or a dated catalyst appearing",
         "would_buy_today": verb == "BUY-CANDIDATE",
         "drivers": None, "r_multiple": None,
     }
@@ -292,7 +431,8 @@ def main() -> None:
                     for h in hs if h["meta"]["ticker"] in vmap]
 
     ideas = load_watchlist()
-    ideas_out = [idea_record(i, cfg, today) for i in ideas]
+    setups = setups_by_ticker()
+    ideas_out = [idea_record(i, cfg, today, setups) for i in ideas]
 
     print(json.dumps({
         "note": vresult.get("note"),

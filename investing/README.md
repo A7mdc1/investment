@@ -1,20 +1,53 @@
-# Portfolio assessment routine (Claude Code)
+# Swing-trade decision support (Claude Code)
 
-A local routine that reads your holdings as markdown and assesses them across
-**price/performance**, **Shariah compliance**, and **DCF valuation**.
+A local, Shariah-gated decision-support system for **short-horizon,
+high-asymmetry swing trades**. It reads your holdings and setup cards as
+markdown and sharpens each *individual trade decision*: a verified setup, honest
+asymmetry math, gap-aware risk, a hard Shariah gate, and a feedback loop that
+measures which setups actually pay. It gates trade **quality** — it never caps
+trade **quantity** or sizing; those are your decisions.
+
+## The workflow (swing-first)
+
+```
+discover.py  →  leads.md  →  setups/<ticker>.md  →  Zoya/Musaffa  →  recommend.py  →  you size & execute  →  /apply-trade  →  journal.py
+   (machine,      (machine,     (you: the ~10-min       (you: verify        (re-gates:            (your call on          (logs entry+exit)   (monthly review
+    wide net)      refreshed)    setup card = edge)      compliance)          BUY-CANDIDATE)        volume & size)                          by setup type)
+```
+
+1. **Discover** — `python scripts/discover.py` builds a pool (halal-ETF holdings +
+   yfinance screens), applies liquidity floors + Shariah/asymmetry/catalyst gates,
+   and writes **`leads.md`** (machine, overwritten each run). It never touches
+   `watchlist.md`.
+2. **Scan leads** — pick the few worth planning.
+3. **Write a setup card** — copy `setups/_template.md` → `setups/<ticker>.md`
+   (~10 min): entry trigger, stop logic, target logic, earnings plan, invalidation.
+   *This card is the "edge"* — not a fundamental thesis.
+4. **Screen** the name in Zoya/Musaffa; record `shariah.status`/date on the card.
+5. **Recommend** — `python scripts/recommend.py` re-gates. Only a completed,
+   compliant, fresh card with reward:risk ≥ floor and a catalyst in the window
+   clears to **BUY-CANDIDATE**. Everything else is RESEARCH; discovery output is
+   only ever **LEAD**.
+6. **You size and execute** — informed by the gap-adjusted numbers (a stop does
+   not execute through an earnings gap).
+7. **Journal** — `/apply-trade` logs entry and exit to `journal.csv`.
+8. **Review** — `python scripts/journal.py` reports **per-setup expectancy**:
+   which setups pay you, hit rate, avg win/loss R, slippage on stops, and P&L vs a
+   benchmark counterfactual.
 
 ## Layout
 ```
 investing/
 ├── CLAUDE.md                         # project memory (Claude reads on launch)
+├── PM_FRAMEWORK.md                   # the buy-side decision framework
 ├── requirements.txt
-├── .claude/skills/assess-portfolio/  # the /assess-portfolio routine
-│   └── SKILL.md
-├── holdings/                         # one .md per position
-│   └── _example.md                   # copy this to add a holding
-├── scripts/                          # deterministic number-crunching
-│   ├── common.py   prices.py   shariah.py   dcf.py
-└── reports/                          # dated assessments land here
+├── .claude/skills/                   # /assess-portfolio /screen-ideas /discover /apply-trade
+├── holdings/         one .md per open position (_example.md = template)
+├── setups/           one card per prospective trade (_template.md, README.md)
+├── scripts/          discover.py recommend.py verdict.py journal.py apply_txn.py …
+├── leads.md          MACHINE-generated (discover.py overwrites it) — do not hand-edit
+├── watchlist.md      HAND-curated — no script writes it
+└── reports/          dated assessments land here
 ```
 
 ## Setup
@@ -22,20 +55,19 @@ investing/
 2. Copy `holdings/_example.md` → e.g. `holdings/2222-aramco.md`, fill it in. Repeat per position.
 3. Open the folder in Claude Code and run `/assess-portfolio`.
 
-You can also run any script standalone, e.g. `python scripts/dcf.py`.
+You can also run any script standalone, e.g. `python scripts/journal.py`.
 
-## Auto-discovery (run locally)
-`python scripts/discover.py` (or `/discover`, also run automatically at the start
-of `/assess-portfolio`) auto-builds a candidate pool from halal-ETF holdings
-(e.g. SPUS) + yfinance screens, runs the PM edge/asymmetry/catalyst gates, and
-**rewrites `watchlist.md`** with the top 20 by max benefit — no manual list
-needed. Tune it in `rules.md` (`discover_*` knobs).
-- Needs **live Yahoo data**, so run it on your own machine — managed sandboxes
-  block Yahoo, leaving the pool empty.
-- Output is **leads to research, not buys**: Shariah is UNVERIFIED (confirm in
-  Zoya/Musaffa) and EDGE is never auto-supplied (you add the variant view).
+## Division of labor
+- The system gates **quality**: setup completeness, honest asymmetry, a gap plan,
+  and compliance. A raw discovery row or an unverified name can never become a buy.
+- **You** decide quantity and sizing, informed by the gap-adjusted numbers and the
+  journal's per-setup expectancy.
+- Discovery needs **live Yahoo data** — run it on your own machine; managed
+  sandboxes block Yahoo and leave the pool empty (handled gracefully).
 
 ## Notes
 - Tadawul tickers use the `.SR` suffix (2222.SR = Aramco).
 - The Shariah ratio pre-check is a heads-up, **not** a replacement for Zoya/Musaffa.
-- Everything is your own analysis, not financial advice.
+- Institutional process raises decision *quality*; it does not guarantee returns —
+  most retail short-term traders lose money net of costs. Everything here is your
+  own analysis, **not financial advice**.

@@ -1,24 +1,28 @@
-"""discover.py — auto-discover candidate ideas, refresh watchlist.md.
+"""discover.py — auto-discover candidate LEADS, refresh leads.md.
 
 Each run (local; needs live Yahoo data) builds a candidate POOL automatically,
 runs the PM decision-logic pipeline over it, and writes the top-N by "max
-benefit" into watchlist.md so recommend.py / the report ingest them — no manual
-curation. This is the deliberate exception to the repo's "never invent tickers"
-rule, scoped to discovery; every downstream gate and the "verify in Zoya/Musaffa
-+ not advice" rails stay intact.
+benefit" into leads.md (machine-generated, overwritten every run). watchlist.md
+is hand-curated and NEVER written by any script (Change 4). This is the
+deliberate exception to the repo's "never invent tickers" rule, scoped to
+discovery; every downstream gate and the "verify in Zoya/Musaffa + not advice"
+rails stay intact.
 
 Pipeline (decision-logic doc, in order):
   1. Pool  = merge(halal-ETF holdings, yfinance screener results), deduped.
-  2. Shariah knockout FIRST — ratio_precheck; a ratio FLAG (ok is False) is an
-     absolute AVOID and is dropped from the shortlist. Clean/unknown stay
-     UNVERIFIED (business screen still needs Zoya/Musaffa).
-  3. Technicals (price/ATR/EMA/momentum/52w/chandelier) via technicals.fetch.
+  2. Liquidity floor — drop names under screen_min_mcap or screen_min_avg_dollar_vol
+     (illiquidity is untradeable "reward"; kills the BMNR/BFLY class at source).
+  3. Shariah knockout — ratio_precheck; a ratio FLAG (ok is False) is an absolute
+     AVOID and is dropped. Clean/unknown stay UNVERIFIED (screen in Zoya/Musaffa).
+  4. Technicals (price/ATR/EMA/momentum/52w/chandelier) via technicals.fetch.
   4. Catalyst — next earnings date via yfinance, auto-filling the CATALYST_GATE.
   5. Asymmetry — reward:risk from a technical target/stop.
-  6. Verdict — BUY-CANDIDATE on mechanics alone (clean ratios + reward:risk >=
-     floor + catalyst within horizon); else RESEARCH; ratio-flagged -> AVOID.
-     EDGE is ALWAYS flagged NOT SUPPLIED: a mechanical BUY-CANDIDATE is never
-     dressed up as an edge-backed conviction call — that variant view is yours.
+  6. Verdict — LEAD on mechanics alone (clean ratios + reward:risk >= floor +
+     catalyst within horizon); else RESEARCH; ratio-flagged -> AVOID. Discovery
+     NEVER emits BUY-CANDIDATE (Change 2): a machine pass with no setup card and
+     no verified Shariah screen is a LEAD to underwrite. EDGE is ALWAYS flagged
+     NOT SUPPLIED and Shariah UNVERIFIED — promote a LEAD by writing a setup card
+     and screening it in Zoya/Musaffa, which recommend.py then re-gates.
   7. Max-benefit rank -> keep top discover_top_n (asymmetry-led composite).
 
 All knobs live in rules.md. Network failures degrade gracefully (skip + warn),
@@ -35,9 +39,11 @@ import recommend
 import screener
 import shariah
 import technicals
+from common import setups_by_ticker
 
 HERE = os.path.dirname(__file__)
-WATCHLIST = os.path.join(HERE, "..", "watchlist.md")
+WATCHLIST = os.path.join(HERE, "..", "watchlist.md")  # hand-curated only — NO script writes this
+LEADS = os.path.join(HERE, "..", "leads.md")          # machine-generated, refreshed every run
 TICKER_RE = re.compile(r"[A-Za-z][A-Za-z.\-]{0,9}")
 
 
@@ -104,8 +110,9 @@ def _etf_holdings(etf: str) -> list[str]:
 def discover_pool(cfg: dict) -> list[tuple[str, str]]:
     """Merge halal-ETF holdings + yfinance screens, deduped. -> [(ticker, source)]."""
     etfs = cfg.get("discover_etfs") or ["SPUS"]
+    # most_actives dropped: it sourced the degenerate/illiquid names (Change 4).
     screens = cfg.get("discover_screens") or [
-        "growth_technology_stocks", "undervalued_large_caps", "most_actives"]
+        "growth_technology_stocks", "undervalued_large_caps"]
     count = int(cfg.get("discover_screen_count", 100))
 
     seen: set[str] = set()
@@ -121,6 +128,31 @@ def discover_pool(cfg: dict) -> list[tuple[str, str]]:
                 seen.add(tk)
                 out.append((tk, f"screen:{sc}"))
     return out
+
+
+# ------------------------------------------------------------------ liquidity
+
+def fetch_mcap(ticker: str):
+    """Market cap via fast_info, best-effort. None on any failure."""
+    try:
+        import yfinance as yf
+        return yf.Ticker(ticker).fast_info.get("marketCap")
+    except Exception as e:
+        print(f"[warn] mcap {ticker}: {e}", file=sys.stderr)
+        return None
+
+
+def passes_liquidity(mcap, avg_dollar_vol, cfg: dict):
+    """Liquidity floor: illiquidity is untradeable 'reward'. A KNOWN value below
+    a floor drops the lead; missing data (None) does not drop (unknown != fail).
+    Returns (ok: bool, reason: str)."""
+    min_mcap = float(cfg.get("screen_min_mcap", 500e6))
+    min_adv = float(cfg.get("screen_min_avg_dollar_vol", 5e6))
+    if mcap is not None and mcap < min_mcap:
+        return False, f"mcap ${mcap/1e6:.0f}M < ${min_mcap/1e6:.0f}M floor"
+    if avg_dollar_vol is not None and avg_dollar_vol < min_adv:
+        return False, f"avg $vol ${avg_dollar_vol/1e6:.1f}M < ${min_adv/1e6:.0f}M floor"
+    return True, ""
 
 
 # ------------------------------------------------------------------- catalysts
@@ -154,15 +186,18 @@ def fetch_catalyst_date(ticker: str, today: dt.date) -> str | None:
 # --------------------------------------------------------------------- verdict
 
 def classify(pc_ok, rr, cat_days, horizon: int, rr_floor: float):
-    """Choice 3B: BUY-CANDIDATE on mechanics alone; edge is flagged separately.
-    A ratio FLAG is the only hard AVOID for a discovered idea."""
+    """Discovery emits LEAD (all MECHANICAL gates pass) vs RESEARCH — never
+    BUY-CANDIDATE. A machine pass with no setup card and no verified Shariah
+    screen is a LEAD to underwrite, not a buy candidate (Change 2). A ratio
+    FLAG is the only hard AVOID for a discovered idea."""
     if pc_ok is False:
         return "AVOID", "Shariah ratio pre-check FLAGGED — absolute exclusion (knockout)"
     cat_ok = cat_days is not None and 0 <= cat_days <= horizon
     rr_ok = rr is not None and rr >= rr_floor
     if rr_ok and cat_ok:
-        return "BUY-CANDIDATE", (f"mechanical pass: reward:risk {rr:.1f}:1, catalyst {cat_days}d out "
-                                 f"(EDGE NOT SUPPLIED — add your variant view)")
+        return "LEAD", (f"mechanical pass: reward:risk {rr:.1f}:1, catalyst {cat_days}d out "
+                        f"(EDGE NOT SUPPLIED + Shariah UNVERIFIED — write a setup card & screen "
+                        f"in Zoya/Musaffa to promote)")
     reasons = []
     if not rr_ok:
         reasons.append(f"ASYMMETRY_GATE: reward:risk {f'{rr:.1f}:1' if rr is not None else 'n/a'} "
@@ -222,47 +257,47 @@ def rank_and_select(records: list[dict], cfg: dict) -> list[dict]:
     return records[:top_n]
 
 
-def render_rows(records: list[dict]) -> list[str]:
-    """`TICKER | why (auto note) | catalyst` — parseable by recommend.load_watchlist.
-    The note must contain no '|' (the column delimiter)."""
+def render_rows(records: list[dict], setups: dict | None = None) -> list[str]:
+    """`TICKER | why (auto note) | catalyst` — same row format the watchlist used,
+    so recommend.load_watchlist could ingest it. The note must contain no '|'."""
+    setups = setups or {}
     rows = []
     for r in records:
         cat = r.get("catalyst_iso")
         catcol = f"earnings {cat}" if cat else "no dated catalyst found"
         rr = f"{r['reward_risk']:.1f}:1" if r.get("reward_risk") is not None else "n/a"
+        card = "HAS setup card" if r["ticker"].upper() in setups else "no setup card yet"
         note = (f"auto ({r['source']}); {r['verdict']}; reward-risk {rr}; score {r.get('score')}; "
-                f"EDGE: add your variant view; VERIFY Shariah in Zoya/Musaffa")
+                f"{card}; EDGE: add your variant view; VERIFY Shariah in Zoya/Musaffa")
         rows.append(f"{r['ticker']} | {note} | {catcol}")
     return rows
 
 
-def rewrite_watchlist_text(old_text: str, rows: list[str], today: dt.date) -> str:
-    """Replace ONLY the '## Tickers to track' block; preserve header/themes/rules."""
-    marker = "## Tickers to track"
-    block = [
-        marker,
-        f"# AUTO-GENERATED by discover.py on {today} — top {len(rows)} by max-benefit rank.",
-        "# Re-run discovery to refresh. Edit a `why` to add YOUR variant view; these are",
-        "# leads to verify in Zoya/Musaffa, NOT buys. Shariah here is UNVERIFIED.",
-        "# ticker | why (auto note — add your edge) | catalyst (dated)",
+def leads_text(rows: list[str], today: dt.date) -> str:
+    """Whole-file body for leads.md — machine-generated, overwritten every run."""
+    return "\n".join([
+        "# Leads — machine-discovered candidates (AUTO-GENERATED, NOT a buy list)",
+        "",
+        f"Generated by discover.py on {today} — top {len(rows)} by max-benefit rank.",
+        "This file is OVERWRITTEN every discovery run. Do NOT hand-edit it; put",
+        "curated names in watchlist.md instead (no script touches that file).",
+        "",
+        "Every row is a LEAD: a mechanical pass only. EDGE is NOT supplied and",
+        "Shariah is UNVERIFIED. To PROMOTE a lead to a real candidate:",
+        "  1. write setups/<ticker>.md (the ~10-min setup card), and",
+        "  2. screen the name compliant in Zoya/Musaffa (record it on the card).",
+        "Then recommend.py re-gates it — only then can it become BUY-CANDIDATE.",
+        "",
+        "# ticker | why (auto note — LEAD) | catalyst (dated)",
         *rows,
         "",
-    ]
-    lines = old_text.splitlines()
-    start = next((i for i, l in enumerate(lines) if l.strip() == marker), None)
-    if start is None:
-        return old_text.rstrip() + "\n\n" + "\n".join(block) + "\n"
-    end = len(lines)
-    for j in range(start + 1, len(lines)):
-        if lines[j].startswith("## "):
-            end = j
-            break
-    return "\n".join(lines[:start] + block + lines[end:]).rstrip() + "\n"
+    ])
 
 
-def write_watchlist(records: list[dict], today: dt.date, path: str = WATCHLIST) -> None:
-    old = open(path, encoding="utf-8").read() if os.path.exists(path) else "# Watchlist\n"
-    open(path, "w", encoding="utf-8").write(rewrite_watchlist_text(old, render_rows(records), today))
+def write_leads(records: list[dict], today: dt.date, setups: dict | None = None,
+                path: str = LEADS) -> None:
+    """Write leads.md from scratch. Never touches watchlist.md."""
+    open(path, "w", encoding="utf-8").write(leads_text(render_rows(records, setups), today))
 
 
 def main() -> None:
@@ -284,11 +319,16 @@ def main() -> None:
     rows = [{"ticker": tk, "tech": technicals.fetch(tk, cfg), "source": src} for tk, src in pool]
     scored = {s["ticker"]: s.get("score") for s in screener.score_universe(rows, cfg)}
 
-    records, excluded, no_price = [], 0, 0
+    records, excluded, no_price, excluded_liquidity = [], 0, 0, 0
     for row in rows:
         tk, tech = row["ticker"], row["tech"]
         if not tech or tech.get("price") is None:
             no_price += 1
+            continue
+        # Liquidity floor: illiquidity is untradeable "reward" — drop it at source.
+        ok_liq, _ = passes_liquidity(fetch_mcap(tk), tech.get("avg_dollar_vol"), cfg)
+        if not ok_liq:
+            excluded_liquidity += 1
             continue
         pc = shariah.ratio_precheck(tk)
         if pc.get("ok") is False:
@@ -300,19 +340,23 @@ def main() -> None:
                                     scored.get(tk), cfg, horizon, rr_floor))
 
     top = rank_and_select(records, cfg)
-    write_watchlist(top, today)
+    setups = setups_by_ticker()
+    write_leads(top, today, setups)
 
-    counts = {"BUY-CANDIDATE": 0, "RESEARCH": 0}
+    counts = {"LEAD": 0, "RESEARCH": 0}
     for r in top:
         counts[r["verdict"]] = counts.get(r["verdict"], 0) + 1
+    leads_with_cards = sum(1 for r in top if r["ticker"].upper() in setups)
     print(json.dumps({
         "generated": str(today),
         "pool_size": len(pool),
         "dropped_no_price": no_price,
+        "excluded_liquidity": excluded_liquidity,
         "excluded_shariah_ratio_flag": excluded,
         "selected": len(top),
+        "leads_with_setup_cards": leads_with_cards,
         "verdict_counts": counts,
-        "watchlist_written": os.path.abspath(WATCHLIST),
+        "leads_written": os.path.abspath(LEADS),
         "disclaimer": ("Auto-discovered LEADS, not buys or advice. Verdicts are mechanical: "
                        "EDGE is NOT supplied (your variant view is required), and Shariah is "
                        "UNVERIFIED — confirm every name in Zoya/Musaffa before any add."),

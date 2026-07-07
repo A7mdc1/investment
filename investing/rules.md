@@ -56,6 +56,11 @@ time_stop_progress: 0.5          # if < this fraction of the way to T1 by durati
 reward_risk_min: 3.0              # min R:R for BUY-CANDIDATE — new ideas (recommend.py / discover.py)
 reward_risk_min_swing: 2.0        # relaxed floor for short-horizon swing setups
 catalyst_horizon_days: 60         # no catalyst inside this window -> cap at RESEARCH (recommend.py)
+earnings_gap_assumption_pct: 25   # assumed adverse overnight gap for sizing through a print (recommend.py)
+
+# === TRADE JOURNAL (apply_txn.py logs; journal.py reports) ===
+journal_benchmark: SPUS           # same-day benchmark price logged per trade for the counterfactual
+journal_min_trades: 20            # below this many closed trades -> "sample too small" note (never a limit)
 reward_risk_compressed: 1.3       # current R:R below this on open holding -> TRIM (verdict.py)
 dead_money_days: 60               # catalyst passed N days ago, no re-rating -> REVIEW (verdict.py)
 edge_required_for_buy: true       # no variant view articulated -> cap at RESEARCH
@@ -66,10 +71,12 @@ review_cadence_days: 90           # re-underwrite at least this often even with 
 # watchlist.md with the top-N by "max benefit". Needs live Yahoo data (blocked in
 # sandboxes). Shariah ratio FLAG = absolute AVOID; clean stays UNVERIFIED (you
 # still confirm the business screen in Zoya/Musaffa). EDGE is never auto-supplied.
-discover_top_n: 20                # how many candidates to keep + write to watchlist.md
+discover_top_n: 20                # how many leads to keep + write to leads.md
 discover_etfs: [SPUS]             # halal-ETF holdings as the Shariah-friendlier base pool
-discover_screens: [growth_technology_stocks, undervalued_large_caps, most_actives]
+discover_screens: [growth_technology_stocks, undervalued_large_caps]  # dropped most_actives (sourced degenerate names)
 discover_screen_count: 100        # names to pull per yfinance predefined screen
+screen_min_mcap: 500e6            # liquidity floor: drop leads under this market cap (untradeable "reward")
+screen_min_avg_dollar_vol: 5e6    # liquidity floor: drop leads under this 20d avg $ volume
 discover_w_rr: 0.5                # max-benefit rank weight: asymmetry (reward:risk) leads
 discover_w_score: 0.3             # ...then the mechanical signal score (screener.py)
 discover_w_catalyst: 0.2          # ...then catalyst proximity (closer earnings ranks higher)
