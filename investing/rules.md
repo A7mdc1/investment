@@ -57,6 +57,10 @@ reward_risk_min: 3.0              # min R:R for BUY-CANDIDATE — new ideas (rec
 reward_risk_min_swing: 2.0        # relaxed floor for short-horizon swing setups
 catalyst_horizon_days: 60         # no catalyst inside this window -> cap at RESEARCH (recommend.py)
 earnings_gap_assumption_pct: 25   # assumed adverse overnight gap for sizing through a print (recommend.py)
+
+# === TRADE JOURNAL (apply_txn.py logs; journal.py reports) ===
+journal_benchmark: SPUS           # same-day benchmark price logged per trade for the counterfactual
+journal_min_trades: 20            # below this many closed trades -> "sample too small" note (never a limit)
 reward_risk_compressed: 1.3       # current R:R below this on open holding -> TRIM (verdict.py)
 dead_money_days: 60               # catalyst passed N days ago, no re-rating -> REVIEW (verdict.py)
 edge_required_for_buy: true       # no variant view articulated -> cap at RESEARCH

@@ -1,3 +1,7 @@
 __pycache__/
 *.pyc
 *.pyo
+
+# Personal trade ledgers — never commit real trade data
+investing/transactions.csv
+investing/journal.csv

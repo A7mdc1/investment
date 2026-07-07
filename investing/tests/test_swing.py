@@ -17,6 +17,7 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
 import discover
+import journal
 import recommend
 
 TODAY = dt.date(2026, 7, 7)
@@ -217,6 +218,45 @@ def test_discover_writes_leads_not_watchlist(tmp_path=None):
     print("ok  discover writes leads.md; watchlist.md untouched by scripts")
 
 
+def test_journal_expectancy():
+    # 4 closed trades across 2 setup types; shares/entry/stop chosen for round R.
+    def sell(setup, entry, exitp, stop, sh, pl, days, reason, be, bx, r):
+        return {"action": "sell", "ticker": "X", "setup_type": setup,
+                "entry_price": entry, "exit_price": exitp, "stop": stop, "shares": sh,
+                "realized_pl": pl, "holding_days": days, "exit_reason": reason,
+                "realized_r": r, "benchmark_entry": be, "benchmark_exit": bx}
+    rows = [
+        {"action": "buy", "ticker": "X", "setup_type": "breakout"},  # ignored by report
+        sell("breakout", 100, 130, 90, 10, 300, 20, "target", 50, 55, 3.0),
+        sell("breakout", 100, 88, 90, 10, -120, 8, "stop", 50, 52, -1.2),
+        sell("pullback", 50, 60, 45, 20, 100, 15, "target", 50, 53, 2.0),
+        sell("pullback", 50, 47, 45, 20, -30, 6, "stop", 50, 49, -0.6),
+    ]
+    rep = journal.report(rows, {"journal_min_trades": 20})
+
+    ov = rep["overall"]
+    assert ov["trades"] == 4 and ov["hit_rate"] == 0.5, ov
+    assert ov["avg_win_r"] == 2.5 and ov["avg_loss_r"] == -0.9, ov
+    assert ov["expectancy_r"] == 0.8 and ov["expectancy_currency"] == 62.5, ov
+    assert ov["total_pl"] == 250, ov
+    assert rep["sample_note"] and "too small" in rep["sample_note"], rep["sample_note"]
+
+    bs = rep["by_setup_type"]
+    assert set(bs) == {"breakout", "pullback"}, bs
+    assert bs["breakout"]["expectancy_r"] == 0.9 and bs["breakout"]["total_pl"] == 180, bs["breakout"]
+    assert bs["pullback"]["expectancy_r"] == 0.7 and bs["pullback"]["total_pl"] == 70, bs["pullback"]
+
+    # slippage on stops: (90-88)=2 and (45-47)=-2 -> avg 0 over 2 stops
+    sl = rep["slippage_on_stops"]
+    assert sl["stopped_trades"] == 2 and sl["avg_stop_minus_exit"] == 0.0, sl
+
+    # benchmark counterfactual: capital*bench_return summed = 100+40+60-20 = 180
+    cf = rep["benchmark_counterfactual"]
+    assert cf["trades_covered"] == 4 and cf["benchmark_pl"] == 180.0, cf
+    assert cf["trade_pl"] == 250.0 and cf["excess_vs_benchmark"] == 70.0, cf
+    print("ok  journal per-setup expectancy + slippage + benchmark counterfactual")
+
+
 if __name__ == "__main__":
     test_evaluate_setup()
     test_idea_record_buy_candidate_gate()
@@ -225,4 +265,5 @@ if __name__ == "__main__":
     test_discover_never_buy_candidate()
     test_liquidity_floor()
     test_discover_writes_leads_not_watchlist()
+    test_journal_expectancy()
     print("\nall swing-refactor changes verified offline")

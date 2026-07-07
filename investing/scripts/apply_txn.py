@@ -12,7 +12,10 @@ Behaviour:
          with shariah.status=unknown (so it's GATED until you screen it).
   sell : avg-cost method; realized P/L logged; shares==all (or ->0) closes the
          position (file moved to holdings/closed/ with a realized-P/L note).
-All trades append to transactions.csv.
+         --exit-reason stop|target|invalidation|discretionary (inferred if omitted).
+All trades append to transactions.csv AND to journal.csv (richer per-trade record
+with stop/target/expected-R/setup_type/benchmark, read by journal.py for
+per-setup expectancy). The journal is measurement only — no caps, no enforcement.
 """
 from __future__ import annotations
 import argparse
@@ -24,12 +27,57 @@ import os
 import shutil
 from ruamel.yaml import YAML
 
+import journal as journal_mod
+
 HERE = os.path.dirname(__file__)
 HOLDINGS = os.path.join(HERE, "..", "holdings")
 CLOSED = os.path.join(HOLDINGS, "closed")
 LEDGER = os.path.join(HERE, "..", "transactions.csv")
 yaml = YAML()
 yaml.preserve_quotes = True
+
+
+def _benchmark_price(symbol: str):
+    """Same-day benchmark price (best-effort; None offline)."""
+    if not symbol:
+        return None
+    try:
+        import yfinance as yf
+        p = yf.Ticker(symbol).fast_info.get("lastPrice")
+        return round(float(p), 4) if p else None
+    except Exception:
+        return None
+
+
+def journal_log(row: dict):
+    """Append one row to journal.csv (schema in journal.py)."""
+    path = journal_mod.JOURNAL
+    new = not os.path.exists(path)
+    with open(path, "a", newline="", encoding="utf-8") as f:
+        w = csv.DictWriter(f, fieldnames=journal_mod.JOURNAL_FIELDS)
+        if new:
+            w.writeheader()
+        w.writerow({k: ("" if row.get(k) is None else row.get(k)) for k in journal_mod.JOURNAL_FIELDS})
+
+
+def _last_open_entry(ticker: str):
+    """Most recent BUY row for a ticker from journal.csv (the entry side)."""
+    entry = None
+    for r in journal_mod.load_rows():
+        if (str(r.get("ticker", "")).upper() == ticker.upper()
+                and str(r.get("action", "")).lower() == "buy"):
+            entry = r
+    return entry
+
+
+def _setup_meta(ticker: str) -> dict:
+    """Front-matter of setups/<ticker>.md if present (for stop/target/setup_type)."""
+    try:
+        from common import setups_by_ticker
+        s = setups_by_ticker().get(ticker.upper())
+        return s["meta"] if s else {}
+    except Exception:
+        return {}
 
 
 def read_md(path: str):
@@ -75,8 +123,13 @@ def main():
     ap.add_argument("--shares", required=True)  # int or "all"
     ap.add_argument("--price", required=True, type=float)
     ap.add_argument("--name", default=None)
+    ap.add_argument("--exit-reason", dest="exit_reason", default=None,
+                    choices=["stop", "target", "invalidation", "discretionary"],
+                    help="on SELL: how the trade ended (inferred from stop/target if omitted)")
     a = ap.parse_args()
     today = dt.date.today().isoformat()
+    cfg = journal_mod.load_cfg()
+    bench = cfg.get("journal_benchmark", "SPUS")
     path, meta = find(a.ticker)
 
     if a.action == "buy":
@@ -100,6 +153,17 @@ def main():
         log({"date": today, "ticker": a.ticker.upper(), "action": "buy",
              "shares": n, "price": a.price, "realized_pl": "",
              "note": f"avg cost -> {meta['cost_basis']}"})
+        # Journal the entry: setup card supplies stop/target/setup_type/plan.
+        sm = _setup_meta(a.ticker)
+        stop, target = sm.get("stop_price"), sm.get("target_price")
+        exp_r = (round((target - a.price) / (a.price - stop), 3)
+                 if (stop and target and a.price > stop) else None)
+        journal_log({"date": today, "ticker": a.ticker.upper(), "action": "buy",
+                     "shares": n, "entry_price": a.price, "stop": stop, "target": target,
+                     "expected_r": exp_r, "setup_type": sm.get("setup_type"),
+                     "earnings_plan": sm.get("earnings_plan"),
+                     "card_ref": (f"setups/{a.ticker.lower()}.md" if sm else ""),
+                     "benchmark": bench, "benchmark_entry": _benchmark_price(bench)})
         print(f"BUY {n} {a.ticker.upper()} @ {a.price} | shares {old_sh}->{new_sh}, "
               f"avg cost {old_cb}->{meta['cost_basis']}")
         return
@@ -130,7 +194,43 @@ def main():
         where = f"shares {held}->{remaining}"
     log({"date": today, "ticker": a.ticker.upper(), "action": "sell",
          "shares": n, "price": a.price, "realized_pl": realized, "note": where})
-    print(f"SELL {n} {a.ticker.upper()} @ {a.price} | realized P/L {realized} | {where}")
+    # Journal the exit: pair against the most recent entry to get realized R,
+    # holding days, and the exit reason (arg, else inferred from stop/target).
+    entry = _last_open_entry(a.ticker)
+    e_price = journal_mod._num(entry.get("entry_price")) if entry else None
+    e_stop = journal_mod._num(entry.get("stop")) if entry else None
+    e_target = journal_mod._num(entry.get("target")) if entry else None
+    realized_r = (round((a.price - e_price) / (e_price - e_stop), 3)
+                  if (e_price is not None and e_stop is not None and (e_price - e_stop) > 0) else None)
+    holding_days = None
+    if entry and entry.get("date"):
+        try:
+            holding_days = (dt.date.fromisoformat(today) - dt.date.fromisoformat(entry["date"])).days
+        except ValueError:
+            pass
+    reason = a.exit_reason
+    if not reason:
+        if e_stop is not None and a.price <= e_stop:
+            reason = "stop"
+        elif e_target is not None and a.price >= e_target:
+            reason = "target"
+        else:
+            reason = "discretionary"
+    journal_log({"date": today, "ticker": a.ticker.upper(), "action": "sell",
+                 "shares": n, "entry_price": e_price, "exit_price": a.price,
+                 "stop": e_stop, "target": e_target,
+                 "expected_r": (entry.get("expected_r") if entry else None),
+                 "realized_r": realized_r, "realized_pl": realized,
+                 "holding_days": holding_days,
+                 "setup_type": (entry.get("setup_type") if entry else None),
+                 "exit_reason": reason,
+                 "earnings_plan": (entry.get("earnings_plan") if entry else None),
+                 "card_ref": (entry.get("card_ref") if entry else ""),
+                 "benchmark": bench,
+                 "benchmark_entry": (entry.get("benchmark_entry") if entry else None),
+                 "benchmark_exit": _benchmark_price(bench)})
+    print(f"SELL {n} {a.ticker.upper()} @ {a.price} | realized P/L {realized} | "
+          f"{where} | R {realized_r if realized_r is not None else 'n/a'} | exit {reason}")
 
 
 if __name__ == "__main__":
