@@ -28,6 +28,7 @@ def _patch_yfinance_session():
 _patch_yfinance_session()
 
 HOLDINGS_DIR = os.path.join(os.path.dirname(__file__), "..", "holdings")
+SETUPS_DIR = os.path.join(os.path.dirname(__file__), "..", "setups")
 
 
 def parse_holding(path: str) -> dict:
@@ -51,3 +52,28 @@ def load_holdings() -> list[dict]:
         if h["meta"].get("ticker"):
             out.append(h)
     return out
+
+
+def load_setups(setups_dir: str = SETUPS_DIR) -> list[dict]:
+    """Load every pre-trade setup card except files starting with '_' (templates).
+
+    A setup card is the swing-trade analogue of a holding's thesis: YAML
+    front-matter (ticker, status, setup_type, entry/stop/target logic, earnings
+    plan, invalidation, shariah) plus free-text notes. Same shape as
+    parse_holding, so downstream code reads {'meta', 'thesis', 'path'}."""
+    out = []
+    if not os.path.isdir(setups_dir):
+        return out
+    for p in sorted(glob.glob(os.path.join(setups_dir, "*.md"))):
+        name = os.path.basename(p)
+        if name.startswith("_") or name.upper() == "README.MD":
+            continue
+        h = parse_holding(p)
+        if h["meta"].get("ticker"):
+            out.append(h)
+    return out
+
+
+def setups_by_ticker(setups_dir: str = SETUPS_DIR) -> dict:
+    """Map UPPER(ticker) -> setup card dict, for O(1) lookup by ticker."""
+    return {str(s["meta"]["ticker"]).upper(): s for s in load_setups(setups_dir)}

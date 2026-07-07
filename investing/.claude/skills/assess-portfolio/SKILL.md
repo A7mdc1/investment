@@ -67,17 +67,18 @@ financial advisor and that Shariah status must be verified in Zoya/Musaffa.
      rules, not advice from the tool. The routine never auto-trades.
    - **DCF**: intrinsic vs price, with the assumptions stated.
    - **New ideas**: from step 4, give each a verb too —
-     `AVOID` (fails a hard rule, e.g. not compliant) / `RESEARCH` (compliance
-     unverified, no stated edge, or no catalyst within horizon — screen/underwrite
-     before anything) / `BUY-CANDIDATE` (passes your gates; still YOUR call). Use
-     `python scripts/recommend.py`'s `ideas` array as the mechanical first pass —
-     it enforces EDGE_GATE (a stated reason the market is wrong, from watchlist.md's
-     `why` column), ASYMMETRY_GATE (reward:risk >= `reward_risk_min_swing`), and
-     CATALYST_GATE (a dated catalyst within `catalyst_horizon_days`) — then layer
-     your web research for the actual catalyst facts and the main risk on top.
-     A BUY-CANDIDATE must show 2+ entry confirmations (momentum/breakout+volume/
-     pullback/catalyst), a defined initial stop, and a size at risk_per_trade_pct.
-     Never a price target framed as a promise of returns.
+     `AVOID` (fails a hard rule, e.g. Shariah ratio/business knockout) / `RESEARCH`
+     (no completed setup card, Shariah unverified, or no catalyst within horizon —
+     underwrite before anything) / `BUY-CANDIDATE` (clears every gate; still YOUR
+     call). Use `python scripts/recommend.py`'s `ideas` array as the mechanical
+     first pass — it enforces EDGE_GATE (a completed `setups/<ticker>.md` card, not
+     a `why` string), ASYMMETRY_GATE (reward:risk >= `reward_risk_min_swing`),
+     CATALYST_GATE (a dated catalyst within `catalyst_horizon_days`), and
+     SHARIAH_GATE (the card's `shariah.status` must be `compliant` and fresh) —
+     then layer your web research for the actual catalyst facts and main risk on
+     top. UNVERIFIED can never be BUY-CANDIDATE; discovery leads are `LEAD` until a
+     card is written and the name is screened in Zoya/Musaffa. Never a price target
+     framed as a promise of returns.
    - **Follow-ups**: short prioritized checklist.
 
 ## Rules

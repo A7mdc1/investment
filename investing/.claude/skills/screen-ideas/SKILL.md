@@ -14,11 +14,14 @@ weights in rules.md. Compliance is informational (verify in their own tool).
    rank (momentum/trend/RSI/volume/volatility) over universe.md.
 2. Run `python scripts/recommend.py` and read its `ideas` array — this layers the
    PM-grade gates from the decision-logic note on top of watchlist.md entries:
-   EDGE_GATE (is there a stated reason the market is wrong — the `why` column?),
-   ASYMMETRY_GATE (reward:risk vs `reward_risk_min_swing` in rules.md, computed off
-   a technical target/stop), CATALYST_GATE (a dated catalyst within
-   `catalyst_horizon_days`). A screener.py score alone does NOT clear these gates —
-   it's a signal, not an edge.
+   EDGE_GATE (is there a completed setup card in `setups/<ticker>.md` — entry
+   trigger, stop logic, target logic, earnings plan, invalidation, status
+   planned|live?), ASYMMETRY_GATE (reward:risk vs `reward_risk_min_swing`,
+   computed off a technical target/stop), CATALYST_GATE (a dated catalyst within
+   `catalyst_horizon_days`), and SHARIAH_GATE (the card's own `shariah.status`
+   must be `compliant` and screened within ~1 quarter). A screener.py score alone
+   does NOT clear these gates — it's a signal, not an edge. UNVERIFIED can never
+   be BUY-CANDIDATE.
 3. Optionally research the top BUY-CANDIDATE names for a near-term catalyst (web)
    and surface the catalyst AND the main risk side by side. Cite sources.
 4. Present a ranked table: rank, ticker, verdict, score, and the key signals

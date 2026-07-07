@@ -99,7 +99,7 @@ def test_classify_stricter_floor():
     v, why = discover.classify(True, 2.5, 20, horizon=60, rr_floor=3.0)
     assert v == "RESEARCH" and "ASYMMETRY_GATE" in why, (v, why)
     v, _ = discover.classify(True, 3.9, 20, horizon=60, rr_floor=3.0)
-    assert v == "BUY-CANDIDATE", v
+    assert v == "LEAD", v  # discovery emits LEAD, never BUY-CANDIDATE (Change 2)
     v, _ = discover.classify(False, 3.9, 20, horizon=60, rr_floor=3.0)
     assert v == "AVOID", v
     print("ok  classify 3:1 floor for zero-edge ideas")
