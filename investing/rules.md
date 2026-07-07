@@ -67,10 +67,12 @@ review_cadence_days: 90           # re-underwrite at least this often even with 
 # watchlist.md with the top-N by "max benefit". Needs live Yahoo data (blocked in
 # sandboxes). Shariah ratio FLAG = absolute AVOID; clean stays UNVERIFIED (you
 # still confirm the business screen in Zoya/Musaffa). EDGE is never auto-supplied.
-discover_top_n: 20                # how many candidates to keep + write to watchlist.md
+discover_top_n: 20                # how many leads to keep + write to leads.md
 discover_etfs: [SPUS]             # halal-ETF holdings as the Shariah-friendlier base pool
-discover_screens: [growth_technology_stocks, undervalued_large_caps, most_actives]
+discover_screens: [growth_technology_stocks, undervalued_large_caps]  # dropped most_actives (sourced degenerate names)
 discover_screen_count: 100        # names to pull per yfinance predefined screen
+screen_min_mcap: 500e6            # liquidity floor: drop leads under this market cap (untradeable "reward")
+screen_min_avg_dollar_vol: 5e6    # liquidity floor: drop leads under this 20d avg $ volume
 discover_w_rr: 0.5                # max-benefit rank weight: asymmetry (reward:risk) leads
 discover_w_score: 0.3             # ...then the mechanical signal score (screener.py)
 discover_w_catalyst: 0.2          # ...then catalyst proximity (closer earnings ranks higher)

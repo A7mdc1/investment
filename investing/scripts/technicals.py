@@ -38,13 +38,17 @@ def compute_from_df(df, cfg: dict) -> dict:
     rs = gain.iloc[-1] / loss.iloc[-1] if loss.iloc[-1] else float("inf")
     rsi = 100.0 if rs == float("inf") else 100 - 100 / (1 + rs)
 
-    # relative volume (last vs 20-day average) if available
+    # relative volume (last vs 20-day average) + 20-day avg DOLLAR volume if available
     rel_vol = None
+    avg_dollar_vol = None
     if "Volume" in df.columns:
         v = df["Volume"]
         avg = v.rolling(20).mean().iloc[-1]
         if avg:
             rel_vol = float(v.iloc[-1] / avg)
+        adv = (close * v).rolling(20).mean().iloc[-1]
+        if adv == adv:  # not NaN
+            avg_dollar_vol = float(adv)
 
     # distance from 52-week high
     hi52 = float(high.rolling(min(252, len(high))).max().iloc[-1])
@@ -73,6 +77,7 @@ def compute_from_df(df, cfg: dict) -> dict:
         "mom_3_1": mom(21, 63),     # 3-month return, skip last month
         "rsi14": round(rsi, 1),
         "rel_volume": round(rel_vol, 2) if rel_vol is not None else None,
+        "avg_dollar_vol": round(avg_dollar_vol, 0) if avg_dollar_vol is not None else None,
         "dist_52w_high_pct": round(dist_52w_high * 100, 1) if dist_52w_high is not None else None,
         "bom_price": round(bom_price, 4) if bom_price else None,
         "bom_drop_pct": round(bom_drop * 100, 2) if bom_drop is not None else None,

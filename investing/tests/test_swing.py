@@ -185,10 +185,44 @@ def test_discover_never_buy_candidate():
     print("ok  discover.classify emits LEAD, never BUY-CANDIDATE")
 
 
+def test_liquidity_floor():
+    cfg = {"screen_min_mcap": 500e6, "screen_min_avg_dollar_vol": 5e6}
+    ok, why = discover.passes_liquidity(300e6, 20e6, cfg)   # mcap too small
+    assert not ok and "mcap" in why, why
+    ok, why = discover.passes_liquidity(2e9, 1e6, cfg)      # $vol too thin
+    assert not ok and "$vol" in why, why
+    ok, _ = discover.passes_liquidity(2e9, 20e6, cfg)       # both fine
+    assert ok
+    ok, _ = discover.passes_liquidity(None, None, cfg)      # unknown != fail
+    assert ok
+    print("ok  liquidity floor drops small-cap / thin-volume leads")
+
+
+def test_discover_writes_leads_not_watchlist(tmp_path=None):
+    import os as _os
+    leads = discover.leads_text(["FOO | auto note | earnings 2026-08-01"], TODAY)
+    assert "AUTO-GENERATED" in leads and "OVERWRITTEN" in leads, leads
+    assert "watchlist.md instead" in leads, leads
+    # discover writes LEADS, and no longer has a watchlist writer
+    assert hasattr(discover, "write_leads")
+    assert not hasattr(discover, "write_watchlist"), "watchlist writer must be gone"
+    # write to a scratch path and confirm it lands, watchlist path untouched
+    scratch = _os.path.join(_os.path.dirname(discover.LEADS), ".leads_test.md")
+    try:
+        discover.write_leads([], TODAY, {}, path=scratch)
+        assert _os.path.exists(scratch)
+    finally:
+        if _os.path.exists(scratch):
+            _os.remove(scratch)
+    print("ok  discover writes leads.md; watchlist.md untouched by scripts")
+
+
 if __name__ == "__main__":
     test_evaluate_setup()
     test_idea_record_buy_candidate_gate()
     test_gap_sizing()
     test_gap_plan_missing_blocks_buy_candidate()
     test_discover_never_buy_candidate()
+    test_liquidity_floor()
+    test_discover_writes_leads_not_watchlist()
     print("\nall swing-refactor changes verified offline")
