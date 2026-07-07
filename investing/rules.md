@@ -56,6 +56,7 @@ time_stop_progress: 0.5          # if < this fraction of the way to T1 by durati
 reward_risk_min: 3.0              # min R:R for BUY-CANDIDATE — new ideas (recommend.py / discover.py)
 reward_risk_min_swing: 2.0        # relaxed floor for short-horizon swing setups
 catalyst_horizon_days: 60         # no catalyst inside this window -> cap at RESEARCH (recommend.py)
+earnings_gap_assumption_pct: 25   # assumed adverse overnight gap for sizing through a print (recommend.py)
 reward_risk_compressed: 1.3       # current R:R below this on open holding -> TRIM (verdict.py)
 dead_money_days: 60               # catalyst passed N days ago, no re-rating -> REVIEW (verdict.py)
 edge_required_for_buy: true       # no variant view articulated -> cap at RESEARCH

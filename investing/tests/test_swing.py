@@ -121,6 +121,60 @@ def test_idea_record_buy_candidate_gate():
     print("ok  idea_record BUY-CANDIDATE requires card + verified Shariah")
 
 
+def test_gap_sizing():
+    cfg = {"risk_per_trade_pct": 1.5, "earnings_gap_assumption_pct": 25,
+           "catalyst_horizon_days": 60}
+
+    # earnings in window + exit_before -> stop-based sizing, no gap adjustment
+    g = recommend.gap_sizing(100.0, 90.0, 20,
+                             {"holding_window_days": 30, "earnings_plan": "exit_before"}, cfg)
+    assert g["earnings_in_window"] and not g["gap_plan_missing"], g
+    assert g["stop_based_position_pct"] == 15.0, g       # 1.5 / 10% * 100
+    assert g["gap_adjusted_position_pct"] is None, g
+    assert "stop math valid" in g["gap_risk_note"], g
+
+    # hold_through_sized_down -> gap-adjusted = risk / gap_pct = 1.5/25*100 = 6.0
+    g = recommend.gap_sizing(100.0, 90.0, 20,
+                             {"holding_window_days": 30, "earnings_plan": "hold_through_sized_down"}, cfg)
+    assert g["gap_adjusted_position_pct"] == 6.0, g
+    assert g["stop_based_position_pct"] == 15.0, g       # both numbers emitted
+
+    # earnings in window but plan can't cover it -> GAP_PLAN_MISSING
+    g = recommend.gap_sizing(100.0, 90.0, 20,
+                             {"holding_window_days": 30, "earnings_plan": "no_earnings_in_window"}, cfg)
+    assert g["gap_plan_missing"] and "GAP_PLAN_MISSING" in g["gap_risk_note"], g
+
+    # earnings OUTSIDE the holding window -> stop-based applies, not missing
+    g = recommend.gap_sizing(100.0, 90.0, 90,
+                             {"holding_window_days": 30, "earnings_plan": "exit_before"}, cfg)
+    assert not g["earnings_in_window"] and not g["gap_plan_missing"], g
+    print("ok  gap_sizing exit_before / hold_through / missing / out-of-window")
+
+
+def test_gap_plan_missing_blocks_buy_candidate():
+    cfg = {"reward_risk_min_swing": 2.0, "catalyst_horizon_days": 60,
+           "risk_per_trade_pct": 1.5, "earnings_gap_assumption_pct": 25, "target_atr_mult": 10.0}
+    idea = {"ticker": "TEST", "why": None, "catalyst_note": "2026-07-27 earnings"}  # 20d out
+    restore = _patch(monkey_tech=_synthetic_tech(), ratio_ok=True)
+    try:
+        # Card asserts "no earnings in window" but a catalyst lands 20d out -> blocked
+        conflict = recommend.idea_record(
+            idea, cfg, TODAY,
+            {"TEST": _card(holding_window_days=30, earnings_plan="no_earnings_in_window")})
+        assert conflict["verdict"] == "RESEARCH", conflict["verdict"]
+        assert "GAP_PLAN_MISSING" in conflict["conviction_why"], conflict["conviction_why"]
+
+        # hold_through_sized_down clears and emits the gap-adjusted size
+        ok = recommend.idea_record(
+            idea, cfg, TODAY,
+            {"TEST": _card(holding_window_days=30, earnings_plan="hold_through_sized_down")})
+        assert ok["verdict"] == "BUY-CANDIDATE", (ok["verdict"], ok["conviction_why"])
+        assert ok["gap_adjusted_position_pct"] == 6.0, ok
+    finally:
+        restore()
+    print("ok  GAP_PLAN_MISSING blocks BUY-CANDIDATE; hold_through emits gap size")
+
+
 def test_discover_never_buy_candidate():
     v, _ = discover.classify(True, 4.0, 15, horizon=60, rr_floor=3.0)
     assert v == "LEAD", v
@@ -134,5 +188,7 @@ def test_discover_never_buy_candidate():
 if __name__ == "__main__":
     test_evaluate_setup()
     test_idea_record_buy_candidate_gate()
+    test_gap_sizing()
+    test_gap_plan_missing_blocks_buy_candidate()
     test_discover_never_buy_candidate()
     print("\nall swing-refactor changes verified offline")

@@ -206,6 +206,51 @@ def evaluate_setup(setup: dict | None, today: dt.date, stale_days: int = STALE_D
             "holding_window_days": m.get("holding_window_days")}
 
 
+def gap_sizing(px, stop, cat_days, sg: dict, cfg: dict) -> dict:
+    """Gap-aware sizing + earnings-plan check (Change 3).
+
+    A stop does NOT execute through an overnight earnings gap, so for any trade
+    whose earnings fall inside the holding window the record must price the gap
+    instead of pretending the stop-distance math holds:
+      - exit_before            -> flat before the print; stop-based sizing valid
+      - hold_through_sized_down-> emit BOTH the stop-based max AND a gap-adjusted
+                                  size (risk / assumed-gap), "size for the print"
+      - anything else in-window-> GAP_PLAN_MISSING (blocks BUY-CANDIDATE)
+    """
+    risk = float(cfg.get("risk_per_trade_pct", 1.5))
+    gap_pct = float(cfg.get("earnings_gap_assumption_pct", 25))
+    window = sg.get("holding_window_days") or int(cfg.get("catalyst_horizon_days", 60))
+
+    stop_based = None
+    if px and stop and px > stop:
+        stop_dist_pct = (px - stop) / px * 100
+        if stop_dist_pct > 0:
+            stop_based = round(risk / stop_dist_pct * 100, 1)
+
+    earnings_in_window = cat_days is not None and 0 <= cat_days <= window
+    plan = sg.get("earnings_plan")
+    gap_adj, plan_missing = None, False
+
+    if not earnings_in_window:
+        note = "no earnings inside the holding window — stop-based sizing applies"
+    elif plan == "exit_before":
+        note = "earnings in window; plan is flat before the print — stop math valid"
+    elif plan == "hold_through_sized_down":
+        gap_adj = round(risk / gap_pct * 100, 1)
+        note = (f"earnings in window, holding through — size for the print, not the stop: "
+                f"gap-adjusted {gap_adj}% (assumes {gap_pct:.0f}% adverse gap)"
+                + (f" vs stop-based {stop_based}%" if stop_based is not None else ""))
+    else:
+        plan_missing = True
+        note = ("GAP_PLAN_MISSING: earnings inside the holding window but no valid "
+                "earnings_plan (exit_before | hold_through_sized_down) — a stop does "
+                "not execute through an overnight gap; state the plan on the card")
+
+    return {"stop_based_position_pct": stop_based, "gap_adjusted_position_pct": gap_adj,
+            "earnings_in_window": earnings_in_window, "gap_plan_missing": plan_missing,
+            "gap_risk_note": note}
+
+
 def conviction(rr, has_thesis: bool, broken: bool):
     """Heuristic proxy only — a real conviction call needs YOUR variant view."""
     if broken:
@@ -290,6 +335,7 @@ def idea_record(idea: dict, cfg: dict, today: dt.date, setups: dict | None = Non
     cat_days = catalyst_days_out(idea.get("catalyst_note"), today)
     horizon = int(cfg.get("catalyst_horizon_days", 60))
     floor = float(cfg.get("reward_risk_min_swing", 2.0))
+    gap = gap_sizing(px, stop, cat_days, sg, cfg)  # Change 3: gap-aware sizing
 
     def edge_reasons():
         r = []
@@ -330,12 +376,17 @@ def idea_record(idea: dict, cfg: dict, today: dt.date, setups: dict | None = Non
         # never be BUY-CANDIDATE (the whole point of Change 2).
         if not sg["shariah_ok"]:
             why.append(f"SHARIAH_GATE: {sg['shariah_note']}")
+        # A stop does not execute through an earnings gap — an in-window print with
+        # no valid earnings_plan blocks BUY-CANDIDATE (Change 3).
+        if gap["gap_plan_missing"]:
+            why.append(gap["gap_risk_note"])
         if (has_edge and rr is not None and rr >= floor
                 and cat_days is not None and 0 <= cat_days <= horizon
-                and sg["shariah_ok"]):
+                and sg["shariah_ok"] and not gap["gap_plan_missing"]):
             verb = "BUY-CANDIDATE"
             why = [f"cleared setup/asymmetry/catalyst/Shariah gates ({sg['setup_type'] or 'setup'}); "
-                   f"reward:risk {rr:.1f}:1, catalyst {cat_days}d out, {sg['shariah_note']}"]
+                   f"reward:risk {rr:.1f}:1, catalyst {cat_days}d out, {sg['shariah_note']}; "
+                   f"{gap['gap_risk_note']}"]
 
     return {
         "ticker": ticker, "name": None, "kind": "idea",
@@ -354,7 +405,12 @@ def idea_record(idea: dict, cfg: dict, today: dt.date, setups: dict | None = Non
         "downside_price": stop,
         "downside_pct": round((px - stop) / px * 100, 1) if (stop and px) else None,
         "reward_risk": round(rr, 2) if rr is not None else None,
-        "time_horizon": "swing", "position_pct": None,
+        "time_horizon": "swing",
+        "position_pct": gap["stop_based_position_pct"],
+        "stop_based_position_pct": gap["stop_based_position_pct"],
+        "gap_adjusted_position_pct": gap["gap_adjusted_position_pct"],
+        "earnings_in_window": gap["earnings_in_window"],
+        "gap_risk_note": gap["gap_risk_note"],
         "risk_per_trade_pct": cfg.get("risk_per_trade_pct"),
         "key_risks": None, "invalidation": (setup["meta"].get("invalidation") if setup else None),
         "stop": stop,
