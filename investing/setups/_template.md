@@ -4,7 +4,9 @@
 # repeatable setup, not a fundamental thesis. recommend.py will not call a name
 # BUY-CANDIDATE until this card is complete AND Shariah is verified below.
 ticker: IBRX
-status: planned            # planned | live | closed | abandoned
+status: planned            # draft | planned | live | closed | abandoned
+                           # draft = machine-filled by scaffold.py, unreviewed (caps at RESEARCH);
+                           # you review/edit and set `planned` to approve it.
 setup_type: earnings_run   # your taxonomy: breakout | pullback | earnings_run | post_earnings_drift | other
 entry_trigger: ""          # the SPECIFIC condition that puts the trade on (price/volume/event) — REQUIRED
 entry_price: null

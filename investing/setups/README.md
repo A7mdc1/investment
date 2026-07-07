@@ -23,14 +23,29 @@ Without both, the strongest label a name can earn is **RESEARCH** (from
 
 ## Workflow
 
-1. Run discovery → skim the leads.
-2. For the few worth planning, copy `_template.md` → `setups/<ticker>.md` and
-   fill it in (~10 min).
-3. Screen the name in Zoya/Musaffa and record the verdict + date in the card's
-   `shariah:` block.
-4. Run `recommend.py` — a complete, compliant, fresh card with reward:risk above
-   the floor and a catalyst in the window clears to BUY-CANDIDATE.
-5. You size and execute; log it with `/apply-trade`.
+1. Run discovery (`discover.py`) → `leads.md`.
+2. `python scripts/scaffold.py --all-leads` auto-fills a **DRAFT** card
+   (`status: draft`) for every lead — complete proposed plans (entry/stop/target/
+   logic/invalidation) from Yahoo formula outputs. Read them in the assessment
+   report. (Or scaffold one name: `scaffold.py TICKER [--setup-type breakout]`.)
+3. **Review & approve.** Do your own research; edit any level or text you disagree
+   with; then set `status: planned`. This flip is the approval — a draft can never
+   become a buy candidate on its own.
+4. Screen the name in Zoya/Musaffa and record the verdict + date in the card's
+   `shariah:` block (the scaffold leaves it `unverified` — only you set `compliant`).
+5. Run `recommend.py` — a complete, **planned**, compliant, fresh card with
+   reward:risk above the floor and a catalyst in the window clears to BUY-CANDIDATE.
+6. You size and execute; log it with `/apply-trade`; review with `journal.py`.
+
+### Two invariants (non-negotiable)
+- A machine-filled (`draft`) card can **never** reach BUY-CANDIDATE without your
+  explicit approval — the `status: draft → planned` flip.
+- The scaffold **never** writes `shariah.status: compliant`. Only a human
+  Zoya/Musaffa screen sets that.
+
+## Card status lifecycle
+`draft` (scaffold, unreviewed) → `planned` (you approved) → `live` (position open)
+→ `closed` / `abandoned`. Only `planned`/`live` clear the edge gate.
 
 ## Fields that matter most
 

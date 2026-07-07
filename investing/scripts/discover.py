@@ -39,7 +39,7 @@ import recommend
 import screener
 import shariah
 import technicals
-from common import setups_by_ticker
+from common import setups_by_ticker, fetch_mcap, passes_liquidity
 
 HERE = os.path.dirname(__file__)
 WATCHLIST = os.path.join(HERE, "..", "watchlist.md")  # hand-curated only — NO script writes this
@@ -130,29 +130,8 @@ def discover_pool(cfg: dict) -> list[tuple[str, str]]:
     return out
 
 
-# ------------------------------------------------------------------ liquidity
-
-def fetch_mcap(ticker: str):
-    """Market cap via fast_info, best-effort. None on any failure."""
-    try:
-        import yfinance as yf
-        return yf.Ticker(ticker).fast_info.get("marketCap")
-    except Exception as e:
-        print(f"[warn] mcap {ticker}: {e}", file=sys.stderr)
-        return None
-
-
-def passes_liquidity(mcap, avg_dollar_vol, cfg: dict):
-    """Liquidity floor: illiquidity is untradeable 'reward'. A KNOWN value below
-    a floor drops the lead; missing data (None) does not drop (unknown != fail).
-    Returns (ok: bool, reason: str)."""
-    min_mcap = float(cfg.get("screen_min_mcap", 500e6))
-    min_adv = float(cfg.get("screen_min_avg_dollar_vol", 5e6))
-    if mcap is not None and mcap < min_mcap:
-        return False, f"mcap ${mcap/1e6:.0f}M < ${min_mcap/1e6:.0f}M floor"
-    if avg_dollar_vol is not None and avg_dollar_vol < min_adv:
-        return False, f"avg $vol ${avg_dollar_vol/1e6:.1f}M < ${min_adv/1e6:.0f}M floor"
-    return True, ""
+# liquidity helpers (fetch_mcap, passes_liquidity) now live in common.py and are
+# imported above so scaffold.py can reuse them (Change 8 refactor).
 
 
 # ------------------------------------------------------------------- catalysts

@@ -164,7 +164,7 @@ def evaluate_setup(setup: dict | None, today: dt.date, stale_days: int = STALE_D
     if not setup:
         return {"found": False, "complete": False,
                 "missing": ["no setup card — create setups/<ticker>.md from _template.md"],
-                "status": None, "status_ok": False, "shariah_ok": False,
+                "status": None, "status_ok": False, "is_draft": False, "shariah_ok": False,
                 "shariah_status": None, "shariah_note": "no setup card",
                 "setup_type": None, "earnings_plan": None, "holding_window_days": None}
 
@@ -179,6 +179,7 @@ def evaluate_setup(setup: dict | None, today: dt.date, stale_days: int = STALE_D
         missing.append(f"earnings_plan (got '{plan}', expected one of {'/'.join(EARNINGS_PLAN_VALUES)})")
     status = m.get("status")
     status_ok = status in SETUP_ACTIVE_STATUS
+    is_draft = status == "draft"  # machine-filled by scaffold.py, awaiting owner review
 
     # Shariah freshness comes from the CARD's own screen, not the ratio pre-check:
     # a BUY-CANDIDATE needs a real compliant verdict recorded within stale_days.
@@ -200,7 +201,7 @@ def evaluate_setup(setup: dict | None, today: dt.date, stale_days: int = STALE_D
         shariah_note = f"card Shariah compliant, {screen_note}"
 
     return {"found": True, "complete": not missing, "missing": missing,
-            "status": status, "status_ok": status_ok,
+            "status": status, "status_ok": status_ok, "is_draft": is_draft,
             "shariah_ok": shariah_ok, "shariah_status": sh_status, "shariah_note": shariah_note,
             "setup_type": m.get("setup_type"), "earnings_plan": plan,
             "holding_window_days": m.get("holding_window_days")}
@@ -344,7 +345,10 @@ def idea_record(idea: dict, cfg: dict, today: dt.date, setups: dict | None = Non
         else:
             if sg["missing"]:
                 r.append("EDGE_GATE: setup card incomplete — fill " + ", ".join(sg["missing"]))
-            if not sg["status_ok"]:
+            if sg.get("is_draft"):
+                r.append("EDGE_GATE: card is machine-filled DRAFT — review levels, edit, "
+                         "set status: planned to approve")
+            elif not sg["status_ok"]:
                 r.append(f"EDGE_GATE: setup status '{sg['status']}' — must be planned|live")
         return r
 
