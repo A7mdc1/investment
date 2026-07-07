@@ -11,23 +11,23 @@ Shariah is UNVERIFIED. To PROMOTE a lead to a real candidate:
 Then recommend.py re-gates it — only then can it become BUY-CANDIDATE.
 
 # ticker | why (auto note — LEAD) | catalyst (dated)
-AR | auto (screen:undervalued_large_caps); LEAD; reward-risk 18.4:1; score 30.7; no setup card yet; EDGE: add your variant view; VERIFY Shariah in Zoya/Musaffa | earnings 2026-07-29
-PLTR | auto (screen:growth_technology_stocks); LEAD; reward-risk 20.0:1; score 32.6; no setup card yet; EDGE: add your variant view; VERIFY Shariah in Zoya/Musaffa | earnings 2026-08-03
-AU | auto (screen:undervalued_large_caps); LEAD; reward-risk 17.9:1; score 24.3; no setup card yet; EDGE: add your variant view; VERIFY Shariah in Zoya/Musaffa | earnings 2026-07-31
-CDE | auto (screen:undervalued_large_caps); LEAD; reward-risk 11.7:1; score 24.6; no setup card yet; EDGE: add your variant view; VERIFY Shariah in Zoya/Musaffa | earnings 2026-08-05
-ULTA | auto (screen:undervalued_large_caps); LEAD; reward-risk 20.0:1; score 23.0; no setup card yet; EDGE: add your variant view; VERIFY Shariah in Zoya/Musaffa | earnings 2026-08-27
-MT | auto (screen:undervalued_large_caps); LEAD; reward-risk 6.0:1; score 37.8; no setup card yet; EDGE: add your variant view; VERIFY Shariah in Zoya/Musaffa | earnings 2026-07-30
-MU | auto (SPUS holding); RESEARCH; reward-risk 5.3:1; score 64.9; no setup card yet; EDGE: add your variant view; VERIFY Shariah in Zoya/Musaffa | earnings 2026-09-23
-TER | auto (screen:growth_technology_stocks); LEAD; reward-risk 5.8:1; score 33.4; no setup card yet; EDGE: add your variant view; VERIFY Shariah in Zoya/Musaffa | earnings 2026-07-29
-VRNS | auto (screen:growth_technology_stocks); LEAD; reward-risk 3.0:1; score 52.2; no setup card yet; EDGE: add your variant view; VERIFY Shariah in Zoya/Musaffa | earnings 2026-07-28
-CF | auto (screen:undervalued_large_caps); LEAD; reward-risk 4.4:1; score 44.0; no setup card yet; EDGE: add your variant view; VERIFY Shariah in Zoya/Musaffa | earnings 2026-08-05
-DUOL | auto (screen:growth_technology_stocks); LEAD; reward-risk 4.9:1; score 39.1; no setup card yet; EDGE: add your variant view; VERIFY Shariah in Zoya/Musaffa | earnings 2026-08-05
-SIMO | auto (screen:growth_technology_stocks); RESEARCH; reward-risk 0.8:1; score 72.7; no setup card yet; EDGE: add your variant view; VERIFY Shariah in Zoya/Musaffa | earnings 2026-07-30
-LIF | auto (screen:growth_technology_stocks); LEAD; reward-risk 4.7:1; score 40.7; no setup card yet; EDGE: add your variant view; VERIFY Shariah in Zoya/Musaffa | earnings 2026-08-10
-ALAB | auto (screen:growth_technology_stocks); RESEARCH; reward-risk 1.1:1; score 70.2; no setup card yet; EDGE: add your variant view; VERIFY Shariah in Zoya/Musaffa | earnings 2026-08-04
-ADI | auto (screen:growth_technology_stocks); LEAD; reward-risk 5.8:1; score 31.6; no setup card yet; EDGE: add your variant view; VERIFY Shariah in Zoya/Musaffa | earnings 2026-08-19
-ALKT | auto (screen:growth_technology_stocks); LEAD; reward-risk 4.2:1; score 30.7; no setup card yet; EDGE: add your variant view; VERIFY Shariah in Zoya/Musaffa | earnings 2026-07-29
-FICO | auto (screen:growth_technology_stocks); LEAD; reward-risk 3.5:1; score 37.1; no setup card yet; EDGE: add your variant view; VERIFY Shariah in Zoya/Musaffa | earnings 2026-07-29
-AMD | auto (SPUS holding); RESEARCH; reward-risk 0.4:1; score 65.3; no setup card yet; EDGE: add your variant view; VERIFY Shariah in Zoya/Musaffa | earnings 2026-08-04
-KLIC | auto (screen:growth_technology_stocks); RESEARCH; reward-risk 1.5:1; score 53.1; no setup card yet; EDGE: add your variant view; VERIFY Shariah in Zoya/Musaffa | earnings 2026-08-06
-PAY | auto (screen:growth_technology_stocks); LEAD; reward-risk 3.5:1; score 31.4; no setup card yet; EDGE: add your variant view; VERIFY Shariah in Zoya/Musaffa | earnings 2026-08-03
+AR | auto (screen:undervalued_large_caps); LEAD; reward-risk 10.8:1; score 36.1; HAS setup card; EDGE: add your variant view; VERIFY Shariah in Zoya/Musaffa | earnings 2026-07-29
+CLS | auto (screen:growth_technology_stocks); LEAD; reward-risk 9.2:1; score 29.8; no setup card yet; EDGE: add your variant view; VERIFY Shariah in Zoya/Musaffa | earnings 2026-07-27
+AVGO | auto (SPUS holding); LEAD; reward-risk 11.8:1; score 27.8; no setup card yet; EDGE: add your variant view; VERIFY Shariah in Zoya/Musaffa | earnings 2026-09-03
+ULTA | auto (screen:undervalued_large_caps); LEAD; reward-risk 20.0:1; score 19.9; HAS setup card; EDGE: add your variant view; VERIFY Shariah in Zoya/Musaffa | earnings 2026-08-27
+KLIC | auto (screen:growth_technology_stocks); LEAD; reward-risk 5.9:1; score 41.3; HAS setup card; EDGE: add your variant view; VERIFY Shariah in Zoya/Musaffa | earnings 2026-08-06
+ALAB | auto (screen:growth_technology_stocks); LEAD; reward-risk 3.5:1; score 62.4; HAS setup card; EDGE: add your variant view; VERIFY Shariah in Zoya/Musaffa | earnings 2026-08-04
+PLTR | auto (screen:growth_technology_stocks); LEAD; reward-risk 6.3:1; score 33.7; HAS setup card; EDGE: add your variant view; VERIFY Shariah in Zoya/Musaffa | earnings 2026-08-03
+LIF | auto (screen:growth_technology_stocks); LEAD; reward-risk 5.7:1; score 42.7; HAS setup card; EDGE: add your variant view; VERIFY Shariah in Zoya/Musaffa | earnings 2026-08-10
+SIMO | auto (screen:growth_technology_stocks); RESEARCH; reward-risk 2.3:1; score 68.1; HAS setup card; EDGE: add your variant view; VERIFY Shariah in Zoya/Musaffa | earnings 2026-07-30
+APH | auto (screen:growth_technology_stocks); LEAD; reward-risk 5.3:1; score 34.7; no setup card yet; EDGE: add your variant view; VERIFY Shariah in Zoya/Musaffa | earnings 2026-07-29
+VRNS | auto (screen:growth_technology_stocks); RESEARCH; reward-risk 2.7:1; score 46.9; HAS setup card; EDGE: add your variant view; VERIFY Shariah in Zoya/Musaffa | earnings 2026-07-28
+FICO | auto (screen:growth_technology_stocks); LEAD; reward-risk 3.8:1; score 36.7; HAS setup card; EDGE: add your variant view; VERIFY Shariah in Zoya/Musaffa | earnings 2026-07-29
+ALKT | auto (screen:growth_technology_stocks); LEAD; reward-risk 4.3:1; score 30.2; HAS setup card; EDGE: add your variant view; VERIFY Shariah in Zoya/Musaffa | earnings 2026-07-29
+CF | auto (screen:undervalued_large_caps); LEAD; reward-risk 3.7:1; score 40.0; HAS setup card; EDGE: add your variant view; VERIFY Shariah in Zoya/Musaffa | earnings 2026-08-05
+DUOL | auto (screen:growth_technology_stocks); LEAD; reward-risk 4.0:1; score 36.9; HAS setup card; EDGE: add your variant view; VERIFY Shariah in Zoya/Musaffa | earnings 2026-08-05
+GDDY | auto (screen:undervalued_large_caps); LEAD; reward-risk 3.6:1; score 34.0; no setup card yet; EDGE: add your variant view; VERIFY Shariah in Zoya/Musaffa | earnings 2026-07-30
+PAY | auto (screen:growth_technology_stocks); LEAD; reward-risk 3.8:1; score 31.1; HAS setup card; EDGE: add your variant view; VERIFY Shariah in Zoya/Musaffa | earnings 2026-08-03
+PSX | auto (screen:undervalued_large_caps); RESEARCH; reward-risk 2.9:1; score 40.3; no setup card yet; EDGE: add your variant view; VERIFY Shariah in Zoya/Musaffa | earnings 2026-08-05
+AMD | auto (SPUS holding); RESEARCH; reward-risk 1.1:1; score 55.6; HAS setup card; EDGE: add your variant view; VERIFY Shariah in Zoya/Musaffa | earnings 2026-08-04
+ESE | auto (screen:growth_technology_stocks); LEAD; reward-risk 3.2:1; score 38.4; no setup card yet; EDGE: add your variant view; VERIFY Shariah in Zoya/Musaffa | earnings 2026-08-10
