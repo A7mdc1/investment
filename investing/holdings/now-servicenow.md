@@ -24,9 +24,9 @@ conviction: null               # TODO: set your own (high/medium/low) — not fa
 thesis_one_liner: Durable enterprise-workflow subscription grower; AI-agent expansion is the forward driver.
 variant_view: null             # TODO: articulate why the market has this wrong, if it does
 catalyst:
-  type: soft
+  type: hard
   desc: Q2 FY2026 earnings + Armis security-workflow integration progress
-  date: null                   # not yet confirmed; update once ServiceNow IR posts a date
+  date: 2026-07-22             # confirmed by ServiceNow IR (BusinessWire, 2026-07-01)
 initial_stop: null             # TODO: set a defensive price level
 target_price: null             # TODO: set a target + target_method
 target_method: null
