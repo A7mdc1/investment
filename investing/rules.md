@@ -71,7 +71,7 @@ review_cadence_days: 90           # re-underwrite at least this often even with 
 # watchlist.md with the top-N by "max benefit". Needs live Yahoo data (blocked in
 # sandboxes). Shariah ratio FLAG = absolute AVOID; clean stays UNVERIFIED (you
 # still confirm the business screen in Zoya/Musaffa). EDGE is never auto-supplied.
-discover_top_n: 20                # how many leads to keep + write to leads.md
+discover_top_n: 50                # how many leads to keep + write to leads.md
 discover_etfs: [SPUS]             # halal-ETF holdings as the Shariah-friendlier base pool
 discover_screens: [growth_technology_stocks, undervalued_large_caps]  # dropped most_actives (sourced degenerate names)
 discover_screen_count: 100        # names to pull per yfinance predefined screen
