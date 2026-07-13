@@ -201,6 +201,7 @@ def build_record(ticker, source, tech, pc, cat_iso, cat_days, score, cfg, horizo
         "score": score,
         "shariah_status": "UNVERIFIED", "shariah_note": sh_note,
         "edge": "NOT SUPPLIED — mechanical pass; add your variant view",
+        "entry": round(px, 2) if px is not None else None,
         "target_price": round(target, 2) if target is not None else None,
         "stop": round(stop, 2) if stop is not None else None,
         "reward_risk": round(rr, 2) if rr is not None else None,
@@ -237,8 +238,11 @@ def rank_and_select(records: list[dict], cfg: dict) -> list[dict]:
 
 
 def render_rows(records: list[dict], setups: dict | None = None) -> list[str]:
-    """`TICKER | why (auto note) | catalyst` — same row format the watchlist used,
-    so recommend.load_watchlist could ingest it. The note must contain no '|'."""
+    """`TICKER | why (auto note) | entry/target/stop | catalyst` — same row format
+    the watchlist used, so recommend.load_watchlist could ingest it. The note must
+    contain no '|'. Entry/target/stop are discover.py's own technical_target_stop()
+    output (same formula scaffold.py later locks into the setup card) — a discovery-
+    stage estimate, not a reviewed plan."""
     setups = setups or {}
     rows = []
     for r in records:
@@ -248,7 +252,13 @@ def render_rows(records: list[dict], setups: dict | None = None) -> list[str]:
         card = "HAS setup card" if r["ticker"].upper() in setups else "no setup card yet"
         note = (f"auto ({r['source']}); {r['verdict']}; reward-risk {rr}; score {r.get('score')}; "
                 f"{card}; EDGE: add your variant view; VERIFY Shariah in Zoya/Musaffa")
-        rows.append(f"{r['ticker']} | {note} | {catcol}")
+        entry = r.get("entry")
+        target = r.get("target_price")
+        stop = r.get("stop")
+        levels = (f"entry ~{entry:.2f} / target {target:.2f} / stop {stop:.2f}"
+                  if entry is not None and target is not None and stop is not None
+                  else "levels n/a")
+        rows.append(f"{r['ticker']} | {note} | {levels} | {catcol}")
     return rows
 
 
@@ -267,7 +277,7 @@ def leads_text(rows: list[str], today: dt.date) -> str:
         "  2. screen the name compliant in Zoya/Musaffa (record it on the card).",
         "Then recommend.py re-gates it — only then can it become BUY-CANDIDATE.",
         "",
-        "# ticker | why (auto note — LEAD) | catalyst (dated)",
+        "# ticker | why (auto note — LEAD) | entry/target/stop (discovery-stage estimate) | catalyst (dated)",
         *rows,
         "",
     ])
