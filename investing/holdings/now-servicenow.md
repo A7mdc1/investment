@@ -25,8 +25,8 @@ thesis_one_liner: Durable enterprise-workflow subscription grower; AI-agent expa
 variant_view: null             # TODO: articulate why the market has this wrong, if it does
 catalyst:
   type: soft
-  desc: Q2 FY2026 earnings + Armis security-workflow integration progress
-  date: null                   # not yet confirmed; update once ServiceNow IR posts a date
+  desc: Q3 FY2026 earnings (Q2 reported 2026-07-22: EPS $0.90 vs $0.76 est, rev $3.99B beat) + Armis integration progress
+  date: 2026-10-28             # confirmed on Q2 call
 initial_stop: null             # TODO: set a defensive price level
 target_price: null             # TODO: set a target + target_method
 target_method: null
