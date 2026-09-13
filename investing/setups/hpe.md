@@ -1,0 +1,25 @@
+---
+ticker: HPE
+status: draft            # machine-filled by scaffold.py, UNREVIEWED — review & set planned to approve
+setup_type: breakout
+entry_trigger: "close above $64.08 (52w high) on >1.2x 20d avg volume"
+entry_price: 64.08
+stop_price: 53.49
+stop_logic: "chandelier trail: HH22 $63.44 - 3x ATR $3.32 = $53.49 — exit when decline exceeds ~3 average daily ranges"
+target_price: 79.95
+target_logic: "T1 $79.95 = entry $64.08 + 1.5x R (R=$10.58); T2 $95.82 = entry + 3x R; structure ceiling = 52w high $64.08"
+holding_window_days: 21
+catalyst: "2026-12-03 earnings"
+earnings_plan: no_earnings_in_window
+liquidity_check: "avg $vol $1283.1M; pass"
+invalidation: "closes back below the breakout level $64.08 within 2 sessions, or breakout volume < 1.2x average"
+shariah:
+  status: unverified     # ALWAYS unverified from the scaffold — only a human Zoya/Musaffa screen sets compliant
+  source: null
+  screened: null         # pre-check: business OK, ratios OK — verify in Zoya/Musaffa
+---
+
+## Notes
+Scaffolded 2026-09-13 from Yahoo data — every level is a formula output. Edit anything
+you disagree with, then set status: planned to approve. Shariah is UNVERIFIED until
+you screen it in Zoya/Musaffa and record the result above.
