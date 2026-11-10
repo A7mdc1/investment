@@ -180,4 +180,78 @@ holdings files and ledger stay in sync.*
 | NOW | $119.65 | $99.29 | +20.5% | growth_5y 18%, terminal 3%, discount 10%. 18% is now roughly the guided cRPO growth, so there is little cushion if growth decelerates further |
 | BMNR | $0.72 | $17.49 | -95.9% (not meaningful) | default 5% growth. The model does not fit an ETH-treasury business |
 
-<!-- DISCOVERY_SECTION -->
+## New ideas (watchlist.md)
+
+`watchlist.md` is still **empty**, so there are no hand-curated names to
+research. `recommend.py`'s `ideas` array returned **0 BUY-CANDIDATEs**. That
+is expected, because no card in `setups/` has been flipped to
+`status: planned`.
+
+## Discovery & draft setups
+
+`discover.py` ran on live data. The pool was 160 names. **SPUS ETF holdings
+failed with HTTP 401**, so the pool came from the two yfinance screens only.
+68 names were dropped by the Shariah ratio flag and 3 by the liquidity floor,
+leaving **50 leads: 3 at LEAD tier and 47 capped at RESEARCH**. Most of the
+47 fail the catalyst-horizon gate: their next earnings dates fall in
+Jan–Mar 2027, outside the 60-day window. `scaffold.py --all-leads` wrote
+**26 new DRAFT cards** and left the 24 existing cards unchanged. Every card
+is unreviewed and Shariah UNVERIFIED. They are proposals to review, never
+buys.
+
+| Ticker | Verdict | Card | R:R | Entry / target / stop (formula) | Catalyst |
+|---|---|---|---|---|---|
+| AVGO | LEAD | existing | 15.0:1 | ~325.56 / 476.03 / 315.55 | earnings 2026-12-09 (29d) |
+| ADI | LEAD | existing | 4.8:1 | ~389.43 / 444.55 / 377.92 | earnings 2026-11-24 (14d) |
+| DLO | LEAD | existing | 3.1:1 | ~14.18 / 16.14 / 13.54 | earnings 2026-11-12 (2d) |
+
+Every level above is a formula output. AVGO's 15:1 comes from a stop only
+about 3% below entry against a 46% target, and that is a formula artifact,
+not an honest asymmetry. Every lead with earnings in the window needs an
+`earnings_plan` (gap plan) before it could ever clear.
+
+New DRAFT cards: ACGL, AEM, ALL, ANET, ASND, BBY, BF-B, DIOD, EVR, FTI,
+HST, KEYS, LSCC, NTAP, NTNX, PNFP, PSX, SMTC, SNA, STLD, TECK, TRV, TS, TXN,
+UI, VLO.
+
+**Business-activity flags.** These passed the ratio pre-check, but their core
+business is very likely to fail a real screen. Don't spend review time on
+them before Zoya/Musaffa:
+- **BF-B** (Brown-Forman: alcohol). Clear knockout.
+- **ACGL, ALL, TRV** (conventional insurance), **PNFP** (bank) and **EVR**
+  (investment bank). These are conventional finance.
+- **HST** (hotel REIT). Hotel revenue typically includes alcohol, and the
+  REIT carries debt.
+- **PLTR** (carried over), with its open defense question, and the
+  precious-metals cluster (**CDE, AGI, KGC, AU, AEM**), with its open
+  streaming/royalty-financing question.
+
+This shows the ratio pre-check misses business-activity knockouts that
+yfinance doesn't tag as `Capital Markets`, the same gap seen with BMNR.
+
+## Follow-ups (priority order)
+
+1. **[Urgent] NOW re-underwrite.** Decide whether the Q4 cRPO guide of
+   18.5% trips your own "What would change my mind" line. Set `initial_stop`,
+   `invalidation`, `variant_view` and `last_review` in
+   `holdings/now-servicenow.md`. As things stand, no rule in the engine can
+   fire on this position below a 20% loss against cost, and that position is
+   80% of the book.
+2. **[Mandate] Re-screen BMNR and NOW in Zoya/Musaffa.** Both screens are now
+   stale. For BMNR, settle the business-activity question specifically. It
+   is unresolved for a second cycle.
+3. **[Time-boxed] BMNR earnings around 2026-11-23.** The position is below
+   its chandelier stop and has no stop, thesis or gap plan on file.
+4. **[Infrastructure] SPUS holdings fetch returned 401**, so the halal-ETF
+   base pool was missing this run. Worth checking whether yfinance's
+   ETF-holdings endpoint needs a fix in `discover.py`.
+5. **[Housekeeping] 26 new DRAFT cards** were added this run, and none are
+   `planned`. Skip the business-activity flags above.
+6. **[Infrastructure, still open] There is no ledger yet.** Log trades via
+   `/apply-trade` to unlock the discipline guard.
+
+---
+
+*Not financial advice. Verdicts are your own rules resolving mechanically.
+Verify all Shariah status in Zoya/Musaffa. Sources: Trefis, MarketBeat,
+INDmoney, Salesforce Ben and Earnings Whispers, as linked above.*
