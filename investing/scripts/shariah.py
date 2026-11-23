@@ -110,7 +110,15 @@ def ratio_precheck(ticker: str) -> dict:
             flags.append(f"debt/mcap {debt_r:.0%} > {DEBT_MAX:.0%}")
         if liq_r is not None and liq_r > LIQUID_MAX:
             flags.append(f"liquid/mcap {liq_r:.0%} > {LIQUID_MAX:.0%}")
-        out = {"ok": not flags, "flags": flags, "business_ok": biz.get("ok")}
+        # Fail closed on an unknown business screen: clean ratios alone must not
+        # read as "clean" when the sector/industry lookup failed (e.g. Yahoo 401/429
+        # under rate-limiting) — that let distillers/insurers through as LEADs.
+        ok = not flags
+        if ok and biz.get("ok") is None:
+            ok = None
+        out = {"ok": ok, "flags": flags, "business_ok": biz.get("ok")}
+        if ok is None:
+            out["note"] = "business screen unknown (no sector/industry metadata) — ratios alone are not a pass"
         if debt_r is not None: out["debt_ratio"] = round(debt_r, 3)
         else: out["debt_ratio_note"] = "no debt rows — unknown, verify in Zoya/Musaffa"
         if liq_r is not None: out["liquid_ratio"] = round(liq_r, 3)

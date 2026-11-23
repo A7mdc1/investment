@@ -93,6 +93,29 @@ def test_business_precheck_knockouts():
     print("ok  business_precheck knockouts")
 
 
+def test_ratio_precheck_fails_closed_on_unknown_business():
+    """Rate-limited sector lookup + clean ratios must be UNKNOWN, not a pass
+    (2026-11-23 run: BF-B/TRV/ALL/ACGL/EVR leaked into leads as 'clean')."""
+    import pandas as pd
+
+    class FakeTicker:
+        fast_info = {"marketCap": 1e10}
+        balance_sheet = pd.DataFrame({"2026": [1e8, 1e8]},
+                                     index=["Total Debt", "Cash And Cash Equivalents"])
+
+    orig_t, orig_b = shariah.yf.Ticker, shariah.business_precheck
+    try:
+        shariah.yf.Ticker = lambda tk: FakeTicker()
+        shariah.business_precheck = lambda tk, info=None: {"ok": None, "flags": []}
+        r = shariah.ratio_precheck("X")
+        assert r["ok"] is None and "note" in r, r
+        shariah.business_precheck = lambda tk, info=None: {"ok": True, "flags": []}
+        assert shariah.ratio_precheck("X")["ok"] is True
+    finally:
+        shariah.yf.Ticker, shariah.business_precheck = orig_t, orig_b
+    print("ok  ratio_precheck fails closed on unknown business screen")
+
+
 def test_classify_stricter_floor():
     # 2.5:1 with a dated catalyst: BUY-CANDIDATE under the old 2.0 swing floor,
     # RESEARCH under the 3.0 zero-edge floor.
@@ -110,5 +133,6 @@ if __name__ == "__main__":
     test_target_cap_on_crashed_stock()
     test_rank_winsorization()
     test_business_precheck_knockouts()
+    test_ratio_precheck_fails_closed_on_unknown_business()
     test_classify_stricter_floor()
     print("\nall fixes verified offline")
