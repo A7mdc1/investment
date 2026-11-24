@@ -1,0 +1,25 @@
+---
+ticker: HSY
+status: draft            # machine-filled by scaffold.py, UNREVIEWED — review & set planned to approve
+setup_type: pullback
+entry_trigger: "pullback to EMA20 $172.57 holding the uptrend (no breakdown on volume)"
+entry_price: 172.57
+stop_price: 164.03
+stop_logic: "chandelier trail: HH22 $180.19 - 3x ATR $5.39 = $164.03 — exit when decline exceeds ~3 average daily ranges"
+target_price: 185.40
+target_logic: "T1 $185.40 = entry $172.57 + 1.5x R (R=$8.55); T2 $198.22 = entry + 3x R; structure ceiling = 52w high $233.93"
+holding_window_days: 21
+catalyst: "2027-02-04 earnings"
+earnings_plan: no_earnings_in_window
+liquidity_check: "avg $vol $367.0M; pass"
+invalidation: "loses EMA20 $172.57 on rising volume"
+shariah:
+  status: unverified     # ALWAYS unverified from the scaffold — only a human Zoya/Musaffa screen sets compliant
+  source: null
+  screened: null         # pre-check: business OK, ratios OK — verify in Zoya/Musaffa
+---
+
+## Notes
+Scaffolded 2026-11-24 from Yahoo data — every level is a formula output. Edit anything
+you disagree with, then set status: planned to approve. Shariah is UNVERIFIED until
+you screen it in Zoya/Musaffa and record the result above.
